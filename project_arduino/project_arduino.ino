@@ -6,6 +6,10 @@
 #include<math.h>
 #include<string.h>
 #include "Button.h"
+#include "HeartbeatSensor.h"
+#include <DFRobot_MAX30102.h>
+
+DFRobot_MAX30102 particleSensor;
 
 TFT_eSPI tft = TFT_eSPI();
 const int SCREEN_HEIGHT = 160;
@@ -27,13 +31,15 @@ const int song_menu = 1;
 const int vis_menu = 2;
 const int idle_menu = 3;
 const int groups_menu = 4;
+const int pulse_recommendation = 5;
+const int recommended_song = 6;
 int state_change;
 
 #define IDLE 0
 #define PRESSED 1
 
-char network[] = "MIT GUEST";
-char password[] = "";
+char network[] = "APORTMENT";
+char password[] = "AportmentSquad2020";
 /* Having network issues since there are 50 MIT and MIT_GUEST networks?. Do the following:
     When the access points are printed out at the start, find a particularly strong one that you're targeting.
     Let's say it is an MIT one and it has the following entry:
@@ -77,7 +83,18 @@ Button left(BUTTON_PIN1);
 Button middle(BUTTON_PIN2);
 Button right(BUTTON_PIN3);
 
+HeartbeatSensor hbs;
+int bpm;
+
+unsigned long primary_timer;
+
 void setup() {
+  while (!particleSensor.begin()) {
+    Serial.println("MAX30102 was not found");
+    delay(1000);
+  }
+
+  
   Serial.begin(115200); //for debugging if needed.
   delay(100);
   int n = WiFi.scanNetworks();
@@ -140,6 +157,15 @@ void setup() {
   invite[0] = '\0';
   shared[0] = '\0';
   state_change = 0; // false
+
+  particleSensor.sensorConfiguration(/*ledBrightness=*/60, /*sampleAverage=*/SAMPLEAVG_8, \
+                                  /*ledMode=*/MODE_MULTILED, /*sampleRate=*/SAMPLERATE_400, \
+                                  /*pulseWidth=*/PULSEWIDTH_411, /*adcRange=*/ADCRANGE_16384);
+
+  hbs = HeartbeatSensor();
+
+  primary_timer = millis();
+  state_change = true;
 }
 
 
@@ -147,6 +173,8 @@ void loop() {
   int left_reading = left.update();
   int middle_reading = middle.update();
   int right_reading = right.update();
+  bpm = hbs.update(particleSensor.getIR());
+  Serial.println(hbs.beat_count);
   tft.setCursor(0,0,1); // reset cursor at the top of the screen
 
   if (millis() - timer > 20000) {
@@ -174,24 +202,42 @@ void loop() {
       timer = millis();
   }
 
-  switch(state){
+  if (state_change) {
     tft.fillScreen(TFT_BLACK);
+    state_change = false;
+  }
+
+  switch(state){
 
     case idle: //Menu State
-        //displays options...fetch current song
-        tft.println("State: Idle. \n\nPress right button to display song info.");
+        if (millis() - primary_timer > 200) {
+          tft.fillScreen(TFT_BLACK);
+          primary_timer = millis();
+
+            //displays options...fetch current song
+          tft.println("State: Idle. \n\nPress right button to display song info.");
+    
+          if (bpm > 45) {
+            tft.printf("\nHeart BPM: %i\n\nPress center button to recommend song.\n", bpm);
+          } else {
+            tft.printf("\nSearching for Heartbeat...\n", bpm);
+          }
+        }
+
+        state_change = false;
 
         if(left_reading){ //button 1 is pressed --> displays song on lcd 
         // send request and retrieve song
             state = song_menu;
-            tft.fillScreen(TFT_BLACK);
-
+            state_change = true;
 
             tft.println("Requesting Song...");
             delay(2000);
             tft.fillScreen(TFT_BLACK);
-        }
-        else if(right_reading){ //button 3 is pressed --> Song List
+        } else if (middle_reading) {
+          state = pulse_recommendation;
+          state_change = true;
+        } else if(right_reading){ //button 3 is pressed --> Song List
             tft.fillScreen(TFT_BLACK);
 
             tft.println("Displaying song list...");
@@ -354,7 +400,33 @@ void loop() {
             option_state = 0;
         }
         break;
-    }
+    case pulse_recommendation:
+        state_change = false;
+        tft.println("Fetching song!");
+        getSongByBPM(bpm);
+        state = recommended_song;
+        state_change = true;
+        break;
+    case recommended_song:
+        state_change = false;
+        tft.println(response);
+        tft.println("\n Press center button to go back to home.");
+  
+        if (middle_reading) {
+          state = idle;
+          state_change = true;
+        }
+        break;
+  }
+}
+
+void getSongByBPM(int bpm) {
+  request[0] = '\0';
+  // http://608dev-2.net/sandbox/sc/team65/michael/bpm.py?bpm=65
+  sprintf(request, "GET http://608dev-2.net/sandbox/sc/team65/michael/bpm.py?bpm=%i HTTP/1.1\r\n",bpm);
+  strcat(request, "Host: 608dev-2.net\r\n"); //add more to the end
+  strcat(request, "\r\n"); //add blank line!
+  do_http_request("608dev-2.net", request, response, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, false);
 }
 
 void initOptions() {
