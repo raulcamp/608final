@@ -6,10 +6,10 @@ import json
 import pprint
 # import spotipy
 # from spotipy.oauth2 import SpotifyClientCredentials
-group_db = '/var/jail/home/jameslin/proj_test/group.db'
-invited_db = '/var/jail/home/jameslin/proj_test/invited.db'
-liked_db = '/var/jail/home/jameslin/proj_test/liked.db'
-shared_db = '/var/jail/home/jameslin/proj_test/shared.db'
+group_db = '/var/jail/home/team65/raul/group.db'
+invited_db = '/var/jail/home/team65/raul/invited.db'
+liked_db = '/var/jail/home/team65/raul/liked.db'
+shared_db = '/var/jail/home/team65/raul/shared.db'
 
 def request_handler(request):
     if request['method'] == "GET":
@@ -68,6 +68,16 @@ def request_handler(request):
                 shared_songs = [{'song': song, 'sharer': sharer, 'group': group_name} for (group_name, username, sharer, song,) in shared_songs]
                 if len(shared_songs) > 0:
                     return shared_songs[0]['song']
+                else:
+                    return "Z"
+        elif action == "get_liked":
+            with sqlite3.connect(liked_db) as cccc:
+                cccc.execute('''CREATE TABLE IF NOT EXISTS liked_data (group_name text, username text, liker text, song text);''')
+                liked_songs = cccc.execute('''SELECT * FROM liked_data WHERE username = ?;''',(username,)).fetchall()
+                cccc.execute('''DELETE from liked_data WHERE username = ?;''',(username,))
+                liked_songs = [{'song': song, 'liker': liker, 'group': group_name} for (group_name, username, liker, song,) in liked_songs]
+                if len(liked_songs) > 0:
+                    return liked_songs[0]['song']
                 else:
                     return "Z"
         else:
@@ -161,12 +171,18 @@ def request_handler(request):
             with sqlite3.connect(group_db) as c:
                 if (username,) not in current_users:
                     return "You are not in the group {}.".format(group_name)
+                # with sqlite3.connect(liked_db) as ccc:
+                #     liked_songs = ccc.execute('''SELECT song FROM liked_data WHERE group_name = ?;''',(group_name,)).fetchall()
+                #     if (song,) in liked_songs:
+                #         return "{} has already been liked in the group {}.".format(song, group_name)
+                #     ccc.execute('''INSERT into liked_data VALUES (?,?,?, ?);''',(group_name, user, username, song,))
+                #     return "You have successfully added {} to the liked songs in group {}.".format(song, group_name)
+                current_users.remove((username,))
                 with sqlite3.connect(liked_db) as ccc:
-                    liked_songs = ccc.execute('''SELECT song FROM liked_data WHERE group_name = ?;''',(group_name,)).fetchall()
-                    if (song,) in liked_songs:
-                        return "{} has already been liked in the group {}.".format(song, group_name)
-                    ccc.execute('''INSERT into liked_data VALUES (?,?,?);''',(group_name, username, song,))
-                    return "You have successfully added {} to the liked songs in group {}.".format(song, group_name)
+                    for (user,) in current_users:
+                        ccc.execute('''INSERT into liked_data VALUES (?,?,?,?);''',(group_name, user, username, song,))
+                    return "You have successfully liked {}".format(song)
+                    
         elif action == "share":
             song = request['form']['song']
             if len(current_users) == 0:
