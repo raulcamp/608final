@@ -4,6 +4,7 @@ import random
 import string
 import json
 import pprint
+import requests
 # import spotipy
 # from spotipy.oauth2 import SpotifyClientCredentials
 group_db = '/var/jail/home/team65/raul/group.db'
@@ -14,6 +15,22 @@ shared_db = '/var/jail/home/team65/raul/shared.db'
 def request_handler(request):
     if request['method'] == "GET":
         action = request['values']['action']
+        if action == "get_song":
+            token = request['values']['token']
+            endpoint = 'https://api.spotify.com/v1/me/player/currently-playing'
+            market = 'US'
+            additional_types='episode'
+            OAUTH_TOKEN = f'Bearer {token}'
+            res = requests.get(endpoint, params={'market': market, 'additional_types': additional_types}, headers={'Authorization': OAUTH_TOKEN})
+
+            content = json.loads(res.content.decode('utf-8'))
+            song = content['item']
+
+            artist = song['artists'][0]['name']
+            song_title = song['name']
+            uri = song['uri']
+
+            return song_title + " by " + artist + "`" + uri
         username = request['values']['username']
         if action == "get_invites":
             with sqlite3.connect(invited_db) as cc:
@@ -23,7 +40,7 @@ def request_handler(request):
                 if len(invited_groups) > 0:
                     return invited_groups[0]
                 else:
-                    return "Z"
+                    return "NO INVITES"
                 # if len(invited_groups) == 0:
                 #     return "You have not been invited to join any groups"
                 # elif len(invited_groups) == 1:
@@ -69,17 +86,7 @@ def request_handler(request):
                 if len(shared_songs) > 0:
                     return shared_songs[0]['song']
                 else:
-                    return "Z"
-        elif action == "get_liked":
-            with sqlite3.connect(liked_db) as cccc:
-                cccc.execute('''CREATE TABLE IF NOT EXISTS liked_data (group_name text, username text, liker text, song text);''')
-                liked_songs = cccc.execute('''SELECT * FROM liked_data WHERE username = ?;''',(username,)).fetchall()
-                cccc.execute('''DELETE from liked_data WHERE username = ?;''',(username,))
-                liked_songs = [{'song': song, 'liker': liker, 'group': group_name} for (group_name, username, liker, song,) in liked_songs]
-                if len(liked_songs) > 0:
-                    return liked_songs[0]['song']
-                else:
-                    return "Z"
+                    return "NO SHARED"
         else:
             return "The action {} does not exist.".format(action)
 
@@ -89,8 +96,13 @@ def request_handler(request):
         action = request['form']['action']
         if action == "play_song":
             song = request['form']['song']
-            # sp = spotipy.Spotify(auth_manager=spotipy.SpotifyOAuth(client_id= 'YOUR ID HERE', client_secret='YOUR SECRET HERE', redirect_uri='http://localhost:8888/callback', scope=' user-read-playback-state user-modify-playback-state'))
-            # sp.add_to_queue('spotify:track:4iJyoBOLtHqaGxP12qzhQI')
+            token = request['form']['token']
+            endpoint = 	'	https://api.spotify.com/v1/me/player/queue'
+            market='US'
+            additional_types='episode'
+            OAUTH_TOKEN = f'Bearer {token}'
+            requests.post(endpoint, params={'uri': song, 'market': market, 'additional_types': additional_types}, headers={'Authorization': OAUTH_TOKEN})
+            return
         group_name = request['form']['group_name']
         username = request['form']['username']
         with sqlite3.connect(group_db) as c:
@@ -149,6 +161,19 @@ def request_handler(request):
                     return "You have successfully joined the group {}.".format(group_name)
                 else:
                     return "The password is incorrect."
+        elif action == "rejected_join":
+            with sqlite3.connect(group_db) as c:
+                if len(current_users) == 0:
+                    return "The group {} does not exist.".format(group_name)
+                if (username,) in current_users:
+                    return "You are already in the group {}.".format(group_name)
+                else:
+                    with sqlite3.connect(invited_db) as cc:
+                        invited_groups = cc.execute('''SELECT group_name FROM invited_data WHERE username = ?;''',(username,)).fetchall()
+                        if (group_name,) not in invited_groups:
+                            return "You have not been invited to the group {}.".format(group_name)
+                        cc.execute('''DELETE from invited_data WHERE group_name = ? AND username = ?;''',(group_name, username,))
+                        return "You have successfully rejected the invite to join the group {}.".format(group_name)
         elif action == "invited_join":
             with sqlite3.connect(group_db) as c:
                 if len(current_users) == 0:
