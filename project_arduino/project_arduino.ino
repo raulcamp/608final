@@ -64,12 +64,16 @@ char username[] = "test_user";
 char song[] = "Song Name";
 char artist[] = "Artist";
 
+uint16_t rawReading;
+
 //Some constants and some resources:
 const int RESPONSE_TIMEOUT = 6000; //ms to wait for response from host
 const uint16_t IN_BUFFER_SIZE = 1000;
 const uint16_t OUT_BUFFER_SIZE = 1000; //size of buffer to hold HTTP response
 char request[IN_BUFFER_SIZE];
 char response[OUT_BUFFER_SIZE]; //char array buffer to hold HTTP request
+
+char recSongBuffer[OUT_BUFFER_SIZE];
 
 char groups[MAX_GROUPS][80];
 char invite[1000];
@@ -86,64 +90,27 @@ Button right(BUTTON_PIN3);
 
 HeartbeatSensor hbs;
 int bpm;
+bool usingPulse;
 
 unsigned long primary_timer;
 
 void setup() {
-  while (!particleSensor.begin()) {
+
+  int tryCounter = 0;
+  usingPulse = true;
+  while (!particleSensor.begin() && tryCounter < 5) {
     Serial.println("MAX30102 was not found");
+    tryCounter++;
     delay(1000);
   }
+
+  if (tryCounter >= 5) usingPulse = false;
 
   
   Serial.begin(115200); //for debugging if needed.
   delay(100);
-  int n = WiFi.scanNetworks();
-  Serial.println("scan done");
-  if (n == 0) {
-    Serial.println("no networks found");
-  } else {
-    Serial.print(n);
-    Serial.println(" networks found");
-    for (int i = 0; i < n; ++i) {
-      Serial.printf("%d: %s, Ch:%d (%ddBm) %s ", i + 1, WiFi.SSID(i).c_str(), WiFi.channel(i), WiFi.RSSI(i), WiFi.encryptionType(i) == WIFI_AUTH_OPEN ? "open" : "");
-      uint8_t* cc = WiFi.BSSID(i);
-      for (int k = 0; k < 6; k++) {
-        Serial.print(*cc, HEX);
-        if (k != 5) Serial.print(":");
-        cc++;
-      }
-      Serial.println("");
-    }
-  }
-  delay(100); //wait a bit (100 ms)
 
-  //if using regular connection use line below:
-  WiFi.begin(network, password);
-  //if using channel/mac specification for crowded bands use the following:
-  //WiFi.begin(network, password, channel, bssid);
-
-
-  uint8_t count = 0; //count used for Wifi check times
-  Serial.print("Attempting to connect to ");
-  Serial.println(network);
-  while (WiFi.status() != WL_CONNECTED && count < 6) { //can change this to more attempts
-    delay(500);
-    Serial.print(".");
-    count++;
-  }
-  delay(2000);  //acceptable since it is in the setup function.
-  if (WiFi.isConnected()) { //if we connected then print our IP, Mac, and SSID we're on
-    Serial.println("CONNECTED!");
-    Serial.printf("%d:%d:%d:%d (%s) (%s)\n", WiFi.localIP()[3], WiFi.localIP()[2],
-                  WiFi.localIP()[1], WiFi.localIP()[0],
-                  WiFi.macAddress().c_str() , WiFi.SSID().c_str());
-    delay(500);
-  } else { //if we failed to connect just Try again.
-    Serial.println("Failed to Connect :/  Going to restart");
-    Serial.println(WiFi.status());
-    ESP.restart(); // restart the ESP (proper way)
-  }
+  setupWifi();
 
   tft.init();
   tft.setRotation(2);
@@ -172,47 +139,28 @@ void setup() {
 
 
 void loop() {
-  int left_reading = left.update();
-  int middle_reading = middle.update();
-  int right_reading = right.update();
-  bpm = hbs.update(particleSensor.getIR());
-  //Serial.println(hbs.beat_count);
-  tft.setCursor(0,0,1); // reset cursor at the top of the screen
+  // button input
+  int leftReading = left.update();
+  int middleReading = middle.update();
+  int rightReading = right.update();
 
-  if (millis() - timer > 5000) {
-      request[0] = '\0'; //set 0th byte to null
-      sprintf(request, "GET http://608dev-2.net/sandbox/sc/team65/raul/final_project_server_code.py?action=get_invites&username=%s\r\n",username);
-      strcat(request, "Host: 608dev-2.net\r\n"); //add more to the end
-      strcat(request, "\r\n"); //add blank line!
-      do_http_request("608dev-2.net", request, response, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, false);
-      Serial.println(response);
-      if (response[0] != 'Z') {
-        strcat(invite, response);
-        state_change = 1;
-      } else {
-        request[0] = '\0'; //set 0th byte to null
-        sprintf(request, "GET http://608dev-2.net/sandbox/sc/team65/raul/final_project_server_code.py?action=get_shared&username=%s\r\n",username);
-        strcat(request, "Host: 608dev-2.net\r\n"); //add more to the end
-        strcat(request, "\r\n"); //add blank line!
-        do_http_request("608dev-2.net", request, response, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, false);
-        if (response[0] != 'Z') {
-          strcat(shared, response);
-          state_change = 1;
-        } else {
-          request[0] = '\0'; //set 0th byte to null
-          sprintf(request, "GET http://608dev-2.net/sandbox/sc/team65/raul/final_project_server_code.py?action=get_liked&username=%s\r\n",username);
-          strcat(request, "Host: 608dev-2.net\r\n"); //add more to the end
-          strcat(request, "\r\n"); //add blank line!
-          do_http_request("608dev-2.net", request, response, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, false);
-          if (response[0] != 'Z') {
-            strcat(liked, response);
-            state_change = 1;
-          }
-        } 
-      }
-      
-      timer = millis();
+  // pulse reading
+  if (usingPulse) {
+    bpm = hbs.update(particleSensor.getIR());
   }
+
+  // audio
+  rawReading = analogRead(A0);
+
+  visualizeMusic(rawReading);
+
+  handleDisplay(leftReading, middleReading, rightReading);
+}
+
+void handleDisplay(int leftReading, int middleReading, int rightReading) {
+  fetchNotifications();
+  
+  tft.setCursor(0,0,1); // reset cursor at the top of the screen
 
   if (state_change) {
     tft.fillScreen(TFT_BLACK);
@@ -222,247 +170,358 @@ void loop() {
   switch(state){
 
     case idle: //Menu State
-        if (millis() - primary_timer > 200) {
-          tft.fillScreen(TFT_BLACK);
-          primary_timer = millis();
-
-            //displays options...fetch current song
-          tft.println("State: Idle. \n\nPress right button to display song info.");
-
-        }
-
-        state_change = false;
-
-        if(left_reading){ //button 1 is pressed --> displays song on lcd 
-        // send request and retrieve song
-            state = song_menu;
-            state_change = true;
-
-            tft.println("Requesting Song...");
-            delay(2000);
-            tft.fillScreen(TFT_BLACK);
-        } else if (middle_reading) {
-          state = pulse_recommendation;
-          state_change = true;
-        } else if(right_reading){ //button 3 is pressed --> Song List
-            tft.fillScreen(TFT_BLACK);
-
-            tft.println("Displaying song list...");
-            delay(2000);
-            tft.fillScreen(TFT_BLACK);
-
-        }
+        idleState(leftReading, middleReading, rightReading);
         break;
     case song_menu: //Here the user has option to fetch vis or display song name
-        char output[80];
-        output[0] = '\0';
-        sprintf(output, "%s by %s.", song, artist);
-        tft.println(output);
-        if (state_change == 1) {
-          tft.fillRect(0, 15, 127, 114, TFT_BLACK);
-          state_change = 0;
-        }
-        if (invite[0] != '\0') {
-          char output[80];
-          sprintf(output, "\n\nNew invite: ->You have been invited to %s.", response);
-          tft.setCursor(1, 15, 2);
-          tft.println(output);
-          tft.setCursor(1, 114, 1);
-          if (bpm > 45) {
-            tft.printf("\nHeart BPM: %i\n\nPress center button to recommend song.\n", bpm);
-          } else {
-            tft.printf("\nSearching for Heartbeat...\n", bpm);
-          }
-          if (right_reading) {
-            char body[100];
-            sprintf(body,"action=invited_join&username=%s&group_name=%s", username, invite);
-            int body_len = strlen(body);
-            sprintf(request,"POST http://608dev-2.net/sandbox/sc/team65/raul/final_project_server_code.py HTTP/1.1\r\n");
-            strcat(request,"Host: 608dev-2.net\r\n");
-            strcat(request,"Content-Type: application/x-www-form-urlencoded\r\n");
-            sprintf(request+strlen(request),"Content-Length: %d\r\n", body_len); //append string formatted to end of request buffer
-            strcat(request,"\r\n"); //new line from header to body
-            strcat(request,body); //body
-            strcat(request,"\r\n"); //new line
-            do_http_request("608dev-2.net", request, response, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, false);
-            invite[0] = '\0';
-            state_change = 1;
-          }
-        } else if (shared[0] != '\0') {
-          char output[80];
-          sprintf(output, "\n\nNew shared song: ->The song %s has been shared with you.", response);
-          
-          tft.setCursor(1, 15, 2);
-          tft.println(output);
-          tft.setCursor(1, 114, 1);
-          if (bpm > 45) {
-            tft.printf("\nHeart BPM: %i\n\nPress center button to recommend song.\n", bpm);
-          } else {
-            tft.printf("\nSearching for Heartbeat...\n", bpm);
-          }
-          
-          if (right_reading || response[0] == 'Z') {
-            shared[0] = '\0';
-            state_change = 1;
-          }
-        } else if (liked[0] != '\0') {
-          char output[80];
-          sprintf(output, "\n\nThe song %s is popular in your group! Do you want to listen to it?", response);
-          
-          tft.setCursor(1, 15, 2);
-          tft.println(output);
-          tft.setCursor(1, 114, 1);
-          if (bpm > 45) {
-            tft.printf("\nHeart BPM: %i\n\nPress center button to recommend song.\n", bpm);
-          } else {
-            tft.printf("\nSearching for Heartbeat...\n", bpm);
-          }
-          
-          if (right_reading || response[0] == 'Z') {
-            liked[0] = '\0';
-            state_change = 1;
-          }
-        } else {
-          tft.setCursor(1, 15);
-          tft.println("\n\nPress middle -> \n       Like Song");
-          tft.setCursor(1, 48);
-          tft.println("\n\nPress right -> \n       Share Song");
-          tft.setCursor(1, 81);
-          tft.println("\n\nStep Count: INSERT STEP COUNT MODULE HERE");
-          tft.setCursor(1, 114, 1);
-          if (bpm > 45) {
-            tft.printf("\nHeart BPM: %i\n\nPress center button to recommend song.\n", bpm);
-          } else {
-            tft.printf("\nSearching for Heartbeat...\n", bpm);
-          }
-          if(left_reading){ // see visualization
-            state = vis_menu;
-            tft.fillScreen(TFT_BLACK);
-            tft.println("Initializing \nVisualization...");
-            delay(2000);
-            tft.fillScreen(TFT_BLACK);
-            count = 0;
-
-          }
-          else if(middle_reading){ // Like song
-            tft.fillScreen(TFT_BLACK);
-            tft.setCursor(0,0,1); // reset cursor at the top of the screen
-            tft.println("Liking Song...");
-            count = 0;
-            delay(2000);
-            tft.fillScreen(TFT_BLACK);
-            initOptions();
-            state = groups_menu;
-          }
-          else if(right_reading){ // Share song with current session
-            tft.fillScreen(TFT_BLACK);
-            tft.setCursor(0,0,1); // reset cursor at the top of the screen
-            tft.println("Sharing Song...");
-            count = 1;
-            delay(2000);
-            tft.fillScreen(TFT_BLACK);
-            initOptions();
-            state = groups_menu;
-          }
-        }
+        songMenuState(leftReading, middleReading, rightReading);
         break;
     case vis_menu: //Vis menu
-        tft.println("State: Visualization Screen\n\nSong: Peaches\n\nLight strobes based \non current beat/pitch");
-        //create object of dan's class and call run() to start visualization
-
-    
-        if(left_reading){ //next song
-          tft.fillScreen(TFT_BLACK);
-          tft.println("Fetching next song...");
-          delay(2000); //delay 3 seconds
-          tft.fillScreen(TFT_BLACK);
-
-        }
-        else if(right_reading){ // go back to idle
-          state = idle;
-          tft.fillScreen(TFT_BLACK);
-          tft.println("Going back to idle state...");
-          delay(2000);
-          tft.fillScreen(TFT_BLACK);
-
-        }
+        visMenuState(leftReading, middleReading, rightReading);
         break;  
     case groups_menu: // Groups menu
-        if (left_reading) { // scroll next group
-            option_state = (option_state + 1) % 5;
-            nextOption(option_state);
-
-        }
-        else if (middle_reading) { // confirm group
-            if (count == 0) {
-                char body[100];
-                sprintf(body,"action=like&username=%s&group_name=%s&song=%s", username, groups[option_state], song);
-                int body_len = strlen(body);
-                sprintf(request,"POST http://608dev-2.net/sandbox/sc/team65/raul/final_project_server_code.py HTTP/1.1\r\n");
-                strcat(request,"Host: 608dev-2.net\r\n");
-                strcat(request,"Content-Type: application/x-www-form-urlencoded\r\n");
-                sprintf(request+strlen(request),"Content-Length: %d\r\n", body_len); //append string formatted to end of request buffer
-                strcat(request,"\r\n"); //new line from header to body
-                strcat(request,body); //body
-                strcat(request,"\r\n"); //new line
-                do_http_request("608dev-2.net", request, response, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, false);
-            } else {
-                char body[100];
-                sprintf(body,"action=share&username=%s&group_name=%s&song=%s", username, groups[option_state], song);
-                int body_len = strlen(body);
-                sprintf(request,"POST http://608dev-2.net/sandbox/sc/team65/raul/final_project_server_code.py HTTP/1.1\r\n");
-                strcat(request,"Host: 608dev-2.net\r\n");
-                strcat(request,"Content-Type: application/x-www-form-urlencoded\r\n");
-                sprintf(request+strlen(request),"Content-Length: %d\r\n", body_len); //append string formatted to end of request buffer
-                strcat(request,"\r\n"); //new line from header to body
-                strcat(request,body); //body
-                strcat(request,"\r\n"); //new line
-                do_http_request("608dev-2.net", request, response, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, false);
-            }
-        } else if (right_reading) {
-            tft.fillScreen(TFT_BLACK);
-            tft.setCursor(0,0,1);
-            tft.setTextColor(TFT_RED, TFT_BLACK);
-            char out[100];
-            if (count == 0) {
-                sprintf(out, "Sent liked songs to groups");
-            } else {
-                sprintf(out, "Sent shared songs to groups");
-            }
-            tft.println(out);
-            delay(2000);
-            tft.fillScreen(TFT_BLACK);
-            state = song_menu;
-            option_state = 0;
-        }
+        groupsMenuState(leftReading, middleReading, rightReading);
         break;
     case pulse_recommendation:
-        state_change = false;
-        tft.println("Fetching song!");
-        getSongByBPM(bpm);
-        state = recommended_song;
-        state_change = true;
+        pulseRecommendationState(leftReading, middleReading, rightReading);
         break;
     case recommended_song:
-        state_change = false;
-        tft.println(response);
-        tft.println("\n Press center button to go back to home.");
-  
-        if (middle_reading) {
-          state = idle;
-          state_change = true;
-        }
+        recommendedSongState(leftReading, middleReading, rightReading);
         break;
+  }
+}
+
+void fetchNotifications() {
+  if (millis() - timer > 5000) {
+    request[0] = '\0'; //set 0th byte to null
+    sprintf(request, "GET http://608dev-2.net/sandbox/sc/team65/raul/final_project_server_code.py?action=get_invites&username=%s\r\n",username);
+    strcat(request, "Host: 608dev-2.net\r\n"); //add more to the end
+    strcat(request, "\r\n"); //add blank line!
+    do_http_request("608dev-2.net", request, response, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, false);
+    Serial.println(response);
+    if (response[0] != 'Z') {
+      strcat(invite, response);
+      state_change = 1;
+    } else {
+      request[0] = '\0'; //set 0th byte to null
+      sprintf(request, "GET http://608dev-2.net/sandbox/sc/team65/raul/final_project_server_code.py?action=get_shared&username=%s\r\n",username);
+      strcat(request, "Host: 608dev-2.net\r\n"); //add more to the end
+      strcat(request, "\r\n"); //add blank line!
+      do_http_request("608dev-2.net", request, response, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, false);
+      if (response[0] != 'Z') {
+        strcat(shared, response);
+        state_change = 1;
+      } else {
+        request[0] = '\0'; //set 0th byte to null
+        sprintf(request, "GET http://608dev-2.net/sandbox/sc/team65/raul/final_project_server_code.py?action=get_liked&username=%s\r\n",username);
+        strcat(request, "Host: 608dev-2.net\r\n"); //add more to the end
+        strcat(request, "\r\n"); //add blank line!
+        do_http_request("608dev-2.net", request, response, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, false);
+        if (response[0] != 'Z') {
+          strcat(liked, response);
+          state_change = 1;
+        }
+      } 
+    }
+    
+    timer = millis();
+  }
+}
+
+//////////////////////
+/////// STATES ///////
+//////////////////////
+
+// IDLE
+
+void idleState(int leftReading, int middleReading, int rightReading) {
+  if (millis() - primary_timer > 200) {
+    tft.fillScreen(TFT_BLACK);
+    primary_timer = millis();
+
+      //displays options...fetch current song
+    tft.println("State: Idle. \n\nPress right button to display song info.");
+
+  }
+
+  state_change = false;
+
+  if(leftReading){ //button 1 is pressed --> displays song on lcd 
+  // send request and retrieve song
+      state = song_menu;
+      state_change = true;
+
+      tft.println("Requesting Song...");
+      // TODO actually request the song...
+      delay(2000);
+      tft.fillScreen(TFT_BLACK);
+  } else if (middleReading) {
+    state = pulse_recommendation;
+    state_change = true;
+  } else if(rightReading){ //button 3 is pressed --> Song List
+      tft.fillScreen(TFT_BLACK);
+
+      tft.println("Displaying song list...");
+      delay(2000);
+      tft.fillScreen(TFT_BLACK);
+
+  }
+}
+
+// SONG MENU
+
+void songMenuState(int leftReading, int middleReading, int rightReading) {
+
+
+  // Song Title/Artist display
+  char output[80];
+  output[0] = '\0';
+  sprintf(output, "%s by %s.", song, artist);
+  tft.println(output);
+
+  // handle state changes
+  if (state_change == 1) {
+    tft.fillRect(0, 15, 127, 114, TFT_BLACK);
+    state_change = 0;
+  }
+
+  displayBPM();
+  
+  if (invite[0] != '\0') {
+    handleInvite(rightReading);
+  } else if (shared[0] != '\0') {
+    handleShared(rightReading); // TODO RAUL or TODO JAMES - should their be some kind of interaction with this notifcation? like a button press or something? at least to get out of it
+  } else if (liked[0] != '\0') {
+    handleLiked(rightReading); // TODO RAUL or TODO JAMES - should their be some kind of interaction with this notifcation? like a button press or something? at least to get out of it
+    
+  } else { // Song Menu
+    
+    tft.setCursor(1, 15);
+    tft.println("\n\nPress left -> \n       Sync Viz");
+    tft.setCursor(1, 48);
+    tft.println("\n\nPress middle -> \n       Like Song");
+    tft.setCursor(1, 81);
+    tft.println("\n\nPress right -> \n       Share Song");
+    tft.setCursor(1, 114, 1);
+//    tft.println("\n\nStep Count: INSERT STEP COUNT MODULE HERE");
+    tft.println("\n\nLong Press left -> \n   BPM-based Song Rec");
+    tft.setCursor(1, 147, 1);
+    
+    if(leftReading == 1){ // sync visualization
+      state = vis_menu;
+      tft.fillScreen(TFT_BLACK);
+      tft.println("Initializing \nVisualization...");
+      delay(2000);
+      tft.fillScreen(TFT_BLACK);
+      count = 0;
+
+    }
+    else if(leftReading == 2) {
+      state = pulse_recommendation;
+      tft.fillScreen(TFT_BLACK);
+      count = 0;
+    }
+    else if(middleReading){ // Like song
+      tft.fillScreen(TFT_BLACK);
+      tft.setCursor(0,0,1); // reset cursor at the top of the screen
+      tft.println("Liking Song...");
+      count = 0;
+      delay(2000);
+      tft.fillScreen(TFT_BLACK);
+      initOptions();
+      state = groups_menu;
+    }
+    else if(rightReading){ // Share song with current session
+      tft.fillScreen(TFT_BLACK);
+      tft.setCursor(0,0,1); // reset cursor at the top of the screen
+      tft.println("Sharing Song...");
+      count = 1;
+      delay(2000);
+      tft.fillScreen(TFT_BLACK);
+      initOptions();
+      state = groups_menu;
+    }
+  }
+}
+
+void handleInvite(int rightReading) {
+  char output[80];
+  sprintf(output, "\n\nNew invite: ->You have been invited to %s.", response);
+  tft.setCursor(1, 15, 2);
+  tft.println(output);
+  tft.setCursor(1, 114, 1);
+
+  if (rightReading) {
+    char body[100];
+    sprintf(body,"action=invited_join&username=%s&group_name=%s", username, invite);
+    int body_len = strlen(body);
+    sprintf(request,"POST http://608dev-2.net/sandbox/sc/team65/raul/final_project_server_code.py HTTP/1.1\r\n");
+    strcat(request,"Host: 608dev-2.net\r\n");
+    strcat(request,"Content-Type: application/x-www-form-urlencoded\r\n");
+    sprintf(request+strlen(request),"Content-Length: %d\r\n", body_len); //append string formatted to end of request buffer
+    strcat(request,"\r\n"); //new line from header to body
+    strcat(request,body); //body
+    strcat(request,"\r\n"); //new line
+    do_http_request("608dev-2.net", request, response, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, false);
+    invite[0] = '\0';
+    state_change = 1;
+  }
+}
+
+void handleShared(int rightReading) {
+  char output[80];
+  sprintf(output, "\n\nNew shared song: ->The song %s has been shared with you.", response);
+  
+  tft.setCursor(1, 15, 2);
+  tft.println(output);
+  tft.setCursor(1, 114, 1);
+  
+  if (rightReading || response[0] == 'Z') {
+    shared[0] = '\0';
+    state_change = 1;
+  }
+}
+
+void handleLiked(int rightReading) {
+  char output[80];  
+  sprintf(output, "\n\nThe song %s is popular in your group! Do you want to listen to it?", response);
+  
+  tft.setCursor(1, 15, 2);
+  tft.println(output);
+  tft.setCursor(1, 114, 1);
+  
+  if (rightReading || response[0] == 'Z') {
+    liked[0] = '\0';
+    state_change = 1;
+  }
+}
+
+// VISUALIZATION MENU
+
+void visMenuState(int leftReading, int middleReading, int rightReading) {
+  tft.println("State: Visualization Screen\n\nSong: Peaches\n\nLight strobes based \non current beat/pitch");
+  //create object of dan's class and call run() to start visualization
+
+
+  if(leftReading){ //next song
+    tft.fillScreen(TFT_BLACK);
+    tft.println("Fetching next song...");
+    delay(2000); //delay 3 seconds
+    tft.fillScreen(TFT_BLACK);
+
+  }
+  else if(rightReading){ // go back to idle
+    state = idle;
+    tft.fillScreen(TFT_BLACK);
+    tft.println("Going back to idle state...");
+    delay(2000);
+    tft.fillScreen(TFT_BLACK);
+
+  }
+}
+
+// GROUPS MENU
+
+void groupsMenuState(int leftReading, int middleReading, int rightReading) {
+  if (leftReading) { // scroll next group
+    option_state = (option_state + 1) % 5;
+    nextOption(option_state);
+  
+  }
+  else if (middleReading) { // confirm group
+    if (count == 0) {
+        char body[100];
+        sprintf(body,"action=like&username=%s&group_name=%s&song=%s", username, groups[option_state], song);
+        int body_len = strlen(body);
+        sprintf(request,"POST http://608dev-2.net/sandbox/sc/team65/raul/final_project_server_code.py HTTP/1.1\r\n");
+        strcat(request,"Host: 608dev-2.net\r\n");
+        strcat(request,"Content-Type: application/x-www-form-urlencoded\r\n");
+        sprintf(request+strlen(request),"Content-Length: %d\r\n", body_len); //append string formatted to end of request buffer
+        strcat(request,"\r\n"); //new line from header to body
+        strcat(request,body); //body
+        strcat(request,"\r\n"); //new line
+        do_http_request("608dev-2.net", request, response, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, false);
+    } else {
+        char body[100];
+        sprintf(body,"action=share&username=%s&group_name=%s&song=%s", username, groups[option_state], song);
+        int body_len = strlen(body);
+        sprintf(request,"POST http://608dev-2.net/sandbox/sc/team65/raul/final_project_server_code.py HTTP/1.1\r\n");
+        strcat(request,"Host: 608dev-2.net\r\n");
+        strcat(request,"Content-Type: application/x-www-form-urlencoded\r\n");
+        sprintf(request+strlen(request),"Content-Length: %d\r\n", body_len); //append string formatted to end of request buffer
+        strcat(request,"\r\n"); //new line from header to body
+        strcat(request,body); //body
+        strcat(request,"\r\n"); //new line
+        do_http_request("608dev-2.net", request, response, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, false);
+    }
+  } else if (rightReading) {
+    tft.fillScreen(TFT_BLACK);
+    tft.setCursor(0,0,1);
+    tft.setTextColor(TFT_RED, TFT_BLACK);
+    char out[100];
+    if (count == 0) {
+        sprintf(out, "Sent liked songs to groups");
+    } else {
+        sprintf(out, "Sent shared songs to groups");
+    }
+    tft.println(out);
+    delay(2000);
+    tft.fillScreen(TFT_BLACK);
+    state = song_menu;
+    option_state = 0;
+  }
+}
+
+// HEARTRATE SONG RECOMMENDATION
+
+void pulseRecommendationState(int leftReading, int middleReading, int rightReading) {
+  state_change = false;
+  tft.println("Fetching song!");
+  getSongByBPM(bpm);
+  state = recommended_song;
+  state_change = true;
+}
+
+void displayBPM() {
+  if (bpm > 45) {
+    tft.printf("\nHeart BPM: %i\n", bpm);
+  } else {
+    tft.printf("\nSearching for Heartbeat...\n", bpm);
+  }
+}
+
+// RECOMMENDED SONG
+
+void recommendedSongState(int leftReading, int middleReading, int rightReading) {
+  state_change = false;
+  tft.println(recSongBuffer);
+  tft.println("\n Press center button to go back to home.");
+
+  if (middleReading) {
+    state = idle;
+    state_change = true;
   }
 }
 
 void getSongByBPM(int bpm) {
   request[0] = '\0';
+  recSongBuffer[0] = '\0';
   // http://608dev-2.net/sandbox/sc/team65/michael/bpm.py?bpm=65
   sprintf(request, "GET http://608dev-2.net/sandbox/sc/team65/michael/bpm.py?bpm=%i HTTP/1.1\r\n",bpm);
   strcat(request, "Host: 608dev-2.net\r\n"); //add more to the end
   strcat(request, "\r\n"); //add blank line!
   do_http_request("608dev-2.net", request, response, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, false);
+  strcpy(recSongBuffer, response);
+}
+
+// VISUALIZATION
+
+void visualizeMusic(uint16_t raw_reading) {
+  Serial.println("DUMMY FUNCTION");
+  // TODO DAN
+}
+
+void syncMusic() {
+  // TODO DAN - this is just a helper function to sync with the server like u had in your demo
 }
 
 void initOptions() {
@@ -548,6 +607,57 @@ void nextOption(int option) {
       tft.setTextColor(TFT_BLACK, TFT_BLACK);
       tft.println(groups[4]);
       break;
+  }
+}
+
+// NETWORK STUFF
+
+void setupWifi() {
+  int n = WiFi.scanNetworks();
+  Serial.println("scan done");
+  if (n == 0) {
+    Serial.println("no networks found");
+  } else {
+    Serial.print(n);
+    Serial.println(" networks found");
+    for (int i = 0; i < n; ++i) {
+      Serial.printf("%d: %s, Ch:%d (%ddBm) %s ", i + 1, WiFi.SSID(i).c_str(), WiFi.channel(i), WiFi.RSSI(i), WiFi.encryptionType(i) == WIFI_AUTH_OPEN ? "open" : "");
+      uint8_t* cc = WiFi.BSSID(i);
+      for (int k = 0; k < 6; k++) {
+        Serial.print(*cc, HEX);
+        if (k != 5) Serial.print(":");
+        cc++;
+      }
+      Serial.println("");
+    }
+  }
+  delay(100); //wait a bit (100 ms)
+
+  //if using regular connection use line below:
+  WiFi.begin(network, password);
+  //if using channel/mac specification for crowded bands use the following:
+  //WiFi.begin(network, password, channel, bssid);
+
+
+  uint8_t count = 0; //count used for Wifi check times
+  Serial.print("Attempting to connect to ");
+  Serial.println(network);
+  while (WiFi.status() != WL_CONNECTED && count < 6) { //can change this to more attempts
+    delay(500);
+    Serial.print(".");
+    count++;
+  }
+  delay(2000);  //acceptable since it is in the setup function.
+  if (WiFi.isConnected()) { //if we connected then print our IP, Mac, and SSID we're on
+    Serial.println("CONNECTED!");
+    Serial.printf("%d:%d:%d:%d (%s) (%s)\n", WiFi.localIP()[3], WiFi.localIP()[2],
+                  WiFi.localIP()[1], WiFi.localIP()[0],
+                  WiFi.macAddress().c_str() , WiFi.SSID().c_str());
+    delay(500);
+  } else { //if we failed to connect just Try again.
+    Serial.println("Failed to Connect :/  Going to restart");
+    Serial.println(WiFi.status());
+    ESP.restart(); // restart the ESP (proper way)
   }
 }
 
