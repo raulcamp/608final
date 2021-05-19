@@ -3,8 +3,8 @@
 #include <TFT_eSPI.h>
 #include <WiFiClient.h>
 #include <ArduinoJson.h>
-#include<math.h>
-#include<string.h>
+#include <math.h>
+#include <string.h>
 #include "Button.h"
 #include "HeartbeatSensor.h"
 #include <DFRobot_MAX30102.h>
@@ -38,8 +38,8 @@ int state_change;
 #define IDLE 0
 #define PRESSED 1
 
-char network[] = "APORTMENT";
-char password[] = "AportmentSquad2020";
+char network[] = ""; 
+char password[] = "";
 /* Having network issues since there are 50 MIT and MIT_GUEST networks?. Do the following:
     When the access points are printed out at the start, find a particularly strong one that you're targeting.
     Let's say it is an MIT one and it has the following entry:
@@ -60,9 +60,10 @@ uint8_t channel = 1; //network channel on 2.4 GHz
 byte bssid[] = {0x04, 0x95, 0xE6, 0xAE, 0xDB, 0x41}; //6 byte MAC address of AP you're targeting.
 
 char host[] = "608dev-2.net";
-char username[] = "test_user";
-char song[] = "Song Name";
-char artist[] = "Artist";
+// input spotify or custom username
+char username[] = "";
+// input user oath token (get temporary token here: https://developer.spotify.com/console/get-users-currently-playing-track/?market=&additional_types=)
+char SPOTIFY_OATH_TOKEN[] = "";
 
 // AUDIO VISUALIZATION
 
@@ -140,12 +141,13 @@ const int NOTIF_FETCH_TIME = 20000;
 
 //Some constants and some resources:
 const int RESPONSE_TIMEOUT = 6000; //ms to wait for response from host
-const uint16_t IN_BUFFER_SIZE = 1000;
-const uint16_t OUT_BUFFER_SIZE = 1000; //size of buffer to hold HTTP response
+const uint16_t IN_BUFFER_SIZE = 2000;
+const uint16_t OUT_BUFFER_SIZE = 2000; //size of buffer to hold HTTP response
 char request[IN_BUFFER_SIZE];
 char response[OUT_BUFFER_SIZE]; //char array buffer to hold HTTP request
 
 char recSongBuffer[OUT_BUFFER_SIZE];
+char songBuffer[OUT_BUFFER_SIZE];
 
 char groups[MAX_GROUPS][80];
 char invite[1000];
@@ -188,7 +190,7 @@ void setup() {
   tft.setRotation(2);
   tft.setTextSize(1.75);
   tft.fillScreen(TFT_BLACK);
-  tft.setTextColor(TFT_RED, TFT_BLACK); //set color of font to red foreground, black background
+  tft.setTextColor(TFT_GREEN, TFT_BLACK); //set color of font to red foreground, black background
   pinMode(BUTTON_PIN1, INPUT_PULLUP);
   timer = millis();
   state = idle;
@@ -334,14 +336,7 @@ void fetchNotifications() {
 // IDLE
 
 void idleState(int leftReading, int middleReading, int rightReading) {
-  if (millis() - primary_timer > 200) {
-    tft.fillScreen(TFT_BLACK);
-    primary_timer = millis();
-
-      //displays options...fetch current song
-    tft.println("State: Idle. \n\nPress left button to display song info.");
-
-  }
+  tft.println("Hello!\nIf you are currently listening to a song,\nthen press the left button to display song info.");
 
   state_change = false;
 
@@ -360,10 +355,7 @@ void songMenuState(int leftReading, int middleReading, int rightReading) {
 
 
   // Song Title/Artist display
-  char output[80];
-  output[0] = '\0';
-  sprintf(output, "%s by %s.", song, artist);
-  tft.println(output);
+  tft.println(songBuffer);
 
   // handle state changes
   if (state_change == 1) {
@@ -382,16 +374,17 @@ void songMenuState(int leftReading, int middleReading, int rightReading) {
     
   } else { // Song Menu
     
-    tft.setCursor(1, 15);
-    tft.println("\n\nPress left -> \n       Sync Viz");
-    tft.setCursor(1, 48);
-    tft.println("\n\nPress middle -> \n       Like Song");
-    tft.setCursor(1, 81);
-    tft.println("\n\nPress right -> \n       Share Song");
-    tft.setCursor(1, 114, 1);
+    //tft.setCursor(1, 15);
+    tft.println("\nPress left -> \n       Sync Viz");
+    //tft.setCursor(1, 48);
+    tft.println("\nLong Press left -> \n   BPM-based Song Rec");
+    //tft.setCursor(1, 81);
+    tft.println("\nPress middle -> \n       Like Song");
+    //tft.setCursor(1, 114, 1);
 //    tft.println("\n\nStep Count: INSERT STEP COUNT MODULE HERE");
-    tft.println("\n\nLong Press left -> \n   BPM-based Song Rec");
-    tft.setCursor(1, 147, 1);
+    tft.println("\nPress right -> \n       Share Song");
+    
+    tft.setCursor(0,0,1); // reset cursor at the top of the screen
     
     if(leftReading == 1){ // sync visualization
       state = vis_menu;
@@ -406,7 +399,6 @@ void songMenuState(int leftReading, int middleReading, int rightReading) {
     }
     else if(middleReading){ // Like song
       tft.fillScreen(TFT_BLACK);
-      tft.setCursor(0,0,1); // reset cursor at the top of the screen
       tft.println("Liking Song...");
       count = 0;
       delay(2000);
@@ -416,7 +408,6 @@ void songMenuState(int leftReading, int middleReading, int rightReading) {
     }
     else if(rightReading){ // Share song with current session
       tft.fillScreen(TFT_BLACK);
-      tft.setCursor(0,0,1); // reset cursor at the top of the screen
       tft.println("Sharing Song...");
       count = 1;
       delay(2000);
@@ -492,14 +483,14 @@ void visMenuState(int leftReading, int middleReading, int rightReading) {
 
 void groupsMenuState(int leftReading, int middleReading, int rightReading) {
   if (leftReading) { // scroll next group
-    option_state = (option_state + 1) % 5;
+    option_state = (option_state + 1) % num_groups;
     nextOption(option_state);
   
   }
   else if (middleReading) { // confirm group
     if (count == 0) {
         char body[100];
-        sprintf(body,"action=like&username=%s&group_name=%s&song=%s", username, groups[option_state], song);
+        sprintf(body,"action=like&username=%s&group_name=%s&song=%s", username, groups[option_state], songBuffer);
         int body_len = strlen(body);
         sprintf(request,"POST http://608dev-2.net/sandbox/sc/team65/raul/final_project_server_code.py HTTP/1.1\r\n");
         strcat(request,"Host: 608dev-2.net\r\n");
@@ -511,7 +502,7 @@ void groupsMenuState(int leftReading, int middleReading, int rightReading) {
         do_http_request("608dev-2.net", request, response, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, false);
     } else {
         char body[100];
-        sprintf(body,"action=share&username=%s&group_name=%s&song=%s", username, groups[option_state], song);
+        sprintf(body,"action=share&username=%s&group_name=%s&song=%s", username, groups[option_state], songBuffer);
         int body_len = strlen(body);
         sprintf(request,"POST http://608dev-2.net/sandbox/sc/team65/raul/final_project_server_code.py HTTP/1.1\r\n");
         strcat(request,"Host: 608dev-2.net\r\n");
@@ -525,7 +516,7 @@ void groupsMenuState(int leftReading, int middleReading, int rightReading) {
   } else if (rightReading) {
     tft.fillScreen(TFT_BLACK);
     tft.setCursor(0,0,1);
-    tft.setTextColor(TFT_RED, TFT_BLACK);
+    tft.setTextColor(TFT_GREEN, TFT_BLACK);
     char out[100];
     if (count == 0) {
         sprintf(out, "Sent liked songs to groups");
@@ -544,7 +535,7 @@ void groupsMenuState(int leftReading, int middleReading, int rightReading) {
 
 void pulseRecommendationState(int leftReading, int middleReading, int rightReading) {
   state_change = false;
-  tft.println("Fetching song!");
+  tft.println(" !");
   getSongByBPM(bpm);
   state = recommended_song;
   state_change = true;
@@ -678,90 +669,117 @@ void write_colors() {
   ledcWrite(B_PWM_CHANNEL, scaled_reading_for_blue);
 }
 
+void getCurrentSong() {
+  request[0] = '\0';
+  songBuffer[0] = '\0';
+  sprintf(request, "GET http://608dev-2.net/sandbox/sc/team65/michael/bpm.py?token=%s HTTP/1.1\r\n", SPOTIFY_OATH_TOKEN);
+  strcat(request, "Host: 608dev-2.net\r\n"); //add more to the end
+  strcat(request, "\r\n"); //add blank line!
+  Serial.println(response);
+  do_http_request("608dev-2.net", request, response, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, true);
+  Serial.println(response);
+  sprintf(songBuffer, response);
+}
 void initOptions() {
   request[0] = '\0'; //set 0th byte to null
   sprintf(request, "GET http://608dev-2.net/sandbox/sc/team65/raul/final_project_server_code.py?action=get_groups&username=%s\r\n",username);
   strcat(request, "Host: 608dev-2.net\r\n"); //add more to the end
   strcat(request, "\r\n"); //add blank line!
   do_http_request("608dev-2.net", request, response, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, false);
-  StaticJsonDocument<200> group_doc;
+  StaticJsonDocument<500> group_doc;
   deserializeJson(group_doc, response);
-  for(int i = 0; i < 5; i++) {
+  num_groups = group_doc["num_groups"];
+  if (num_groups > 10) {
+    num_groups = 10;
+  }
+  for(int i = 0; i < num_groups; i++) {
     groups[i][0] = '\0';
     strcat(groups[i], group_doc["groups"][i]);
   }
 
   tft.setCursor(5, 0, 2);
-  tft.fillRect(0, 0, 100, 15, TFT_RED);
+  tft.fillRect(0, 0, 100, 15, TFT_GREEN);
   tft.setTextColor(TFT_BLACK, TFT_BLACK);
   tft.println(groups[0]);
     
-  for(int i = 1; i < 5; i++) {
+  for(int i = 1; i < num_groups; i++) {
     tft.setCursor(5, 15*i, 2);
     tft.fillRect(0, 15*i, 100, 15, TFT_BLACK);
-    tft.setTextColor(TFT_RED, TFT_BLACK);
+    tft.setTextColor(TFT_GREEN, TFT_BLACK);
     tft.println(groups[i]);
   }
 }
 
 void nextOption(int option) {
-  switch (option) {
-    case 0:
-      tft.setCursor(5, 60, 2);
-      tft.fillRect(0, 60, 100, 15, TFT_BLACK);
-      tft.setTextColor(TFT_RED, TFT_BLACK);
-      tft.println(groups[4]);
-
-      tft.setCursor(5, 0, 2);
-      tft.fillRect(0, 0, 100, 15, TFT_RED);
+  tft.setCursor(5, 0, 2);
+  for(int i = 0; i < num_groups; i++) {
+    tft.setCursor(5, 15*i, 2);
+    if (i == option) {
+      tft.fillRect(0, 15*i, 100, 15, TFT_GREEN);
       tft.setTextColor(TFT_BLACK, TFT_BLACK);
-      tft.println(groups[0]);
-      break;
-    case 1:
-      tft.setCursor(5, 0, 2);
-      tft.fillRect(0, 0, 100, 15, TFT_BLACK);
-      tft.setTextColor(TFT_RED, TFT_BLACK);
-      tft.println(groups[0]);
-
-      tft.setCursor(5, 15, 2);
-      tft.fillRect(0, 15, 100, 15, TFT_RED);
-      tft.setTextColor(TFT_BLACK, TFT_BLACK);
-      tft.println(groups[1]);
-      break;
-    case 2:
-      tft.setCursor(5, 15, 2);
-      tft.fillRect(0, 15, 100, 15, TFT_BLACK);
-      tft.setTextColor(TFT_RED, TFT_BLACK);
-      tft.println(groups[1]);
-
-      tft.setCursor(5, 30, 2);
-      tft.fillRect(0, 30, 100, 15, TFT_RED);
-      tft.setTextColor(TFT_BLACK, TFT_BLACK);
-      tft.println(groups[2]);
-      break;
-    case 3:
-      tft.setCursor(5, 30, 2);
-      tft.fillRect(0, 30, 100, 15, TFT_BLACK);
-      tft.setTextColor(TFT_RED, TFT_BLACK);
-      tft.println(groups[2]);
-
-      tft.setCursor(5, 45, 2);
-      tft.fillRect(0, 45, 100, 15, TFT_RED);
-      tft.setTextColor(TFT_BLACK, TFT_BLACK);
-      tft.println(groups[3]);
-      break;
-    case 4:
-      tft.setCursor(5, 45, 2);
-      tft.fillRect(0, 45, 100, 15, TFT_BLACK);
-      tft.setTextColor(TFT_RED, TFT_BLACK);
-      tft.println(groups[3]);
-
-      tft.setCursor(5, 60, 2);
-      tft.fillRect(0, 60, 100, 15, TFT_RED);
-      tft.setTextColor(TFT_BLACK, TFT_BLACK);
-      tft.println(groups[4]);
-      break;
+    } else {
+      tft.fillRect(0, 15*i, 100, 15, TFT_BLACK);
+      tft.setTextColor(TFT_GREEN, TFT_BLACK);
+    }
+    tft.println(groups[i]);
   }
+//  switch (option) {
+//    case 0:
+//      tft.setCursor(5, 60, 2);
+//      tft.fillRect(0, 60, 100, 15, TFT_BLACK);
+//      tft.setTextColor(TFT_GREEN, TFT_BLACK);
+//      tft.println(groups[4]);
+//
+//      tft.setCursor(5, 0, 2);
+//      tft.fillRect(0, 0, 100, 15, TFT_GREEN);
+//      tft.setTextColor(TFT_BLACK, TFT_BLACK);
+//      tft.println(groups[0]);
+//      break;
+//    case 1:
+//      tft.setCursor(5, 0, 2);
+//      tft.fillRect(0, 0, 100, 15, TFT_BLACK);
+//      tft.setTextColor(TFT_GREEN, TFT_BLACK);
+//      tft.println(groups[0]);
+//
+//      tft.setCursor(5, 15, 2);
+//      tft.fillRect(0, 15, 100, 15, TFT_GREEN);
+//      tft.setTextColor(TFT_BLACK, TFT_BLACK);
+//      tft.println(groups[1]);
+//      break;
+//    case 2:
+//      tft.setCursor(5, 15, 2);
+//      tft.fillRect(0, 15, 100, 15, TFT_BLACK);
+//      tft.setTextColor(TFT_GREEN, TFT_BLACK);
+//      tft.println(groups[1]);
+//
+//      tft.setCursor(5, 30, 2);
+//      tft.fillRect(0, 30, 100, 15, TFT_GREEN);
+//      tft.setTextColor(TFT_BLACK, TFT_BLACK);
+//      tft.println(groups[2]);
+//      break;
+//    case 3:
+//      tft.setCursor(5, 30, 2);
+//      tft.fillRect(0, 30, 100, 15, TFT_BLACK);
+//      tft.setTextColor(TFT_GREEN, TFT_BLACK);
+//      tft.println(groups[2]);
+//
+//      tft.setCursor(5, 45, 2);
+//      tft.fillRect(0, 45, 100, 15, TFT_GREEN);
+//      tft.setTextColor(TFT_BLACK, TFT_BLACK);
+//      tft.println(groups[3]);
+//      break;
+//    case 4:
+//      tft.setCursor(5, 45, 2);
+//      tft.fillRect(0, 45, 100, 15, TFT_BLACK);
+//      tft.setTextColor(TFT_GREEN, TFT_BLACK);
+//      tft.println(groups[3]);
+//
+//      tft.setCursor(5, 60, 2);
+//      tft.fillRect(0, 60, 100, 15, TFT_GREEN);
+//      tft.setTextColor(TFT_BLACK, TFT_BLACK);
+//      tft.println(groups[4]);
+//      break;
+//  }
 }
 
 // NETWORK STUFF
