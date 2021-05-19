@@ -15,8 +15,8 @@ TFT_eSPI tft = TFT_eSPI();
 const int SCREEN_HEIGHT = 160;
 const int SCREEN_WIDTH = 128;
 // TODO: change pins depending on board config
-const int BUTTON_PIN1 = 19; 
-const int BUTTON_PIN2 = 5;
+const int BUTTON_PIN1 = 5; 
+const int BUTTON_PIN2 = 19;
 const int BUTTON_PIN3 = 3;
 
 const int LOOP_PERIOD = 40;
@@ -38,8 +38,8 @@ int state_change;
 #define IDLE 0
 #define PRESSED 1
 
-char network[] = "";
-char password[] = "";
+char network[] = "APORTMENT";
+char password[] = "AportmentSquad2020";
 /* Having network issues since there are 50 MIT and MIT_GUEST networks?. Do the following:
     When the access points are printed out at the start, find a particularly strong one that you're targeting.
     Let's say it is an MIT one and it has the following entry:
@@ -64,7 +64,79 @@ char username[] = "test_user";
 char song[] = "Song Name";
 char artist[] = "Artist";
 
+// AUDIO VISUALIZATION
+
+float beats[1000];
+float segment_times[5000];
+uint8_t pitches[5000];
+char key[20];
+
 uint16_t rawReading;
+
+float sample_rate = 2000; //Hz
+float sample_period = (int)(1e6 / sample_rate);
+
+uint16_t raw_reading;
+uint16_t scaled_reading_for_green;
+uint16_t scaled_reading_for_red;
+uint16_t scaled_reading_for_blue;
+
+uint16_t BEAT_THRESHOLD = 2048;
+//uint16_t BEAT_THRESHOLD = 2048 - 512;
+
+typedef struct {
+  int r;
+  int g;
+  int b;
+} rgb_color;
+
+rgb_color cur_rgb_color;
+
+rgb_color red = {255,0,0};
+rgb_color orange = {255,128,0};
+rgb_color yellow = {255,255,0};
+rgb_color green = {0,255,0};
+rgb_color blue = {0,0,255};
+rgb_color indigo = {75,0,130};
+rgb_color violet = {255,0,255};
+rgb_color white = {255,255,255};
+
+const float UP_THRESH = 1.4;
+const float MID_THRESH = 0.7;
+
+// color palettes to be used based on features of song
+rgb_color HI_COLORS[5] = {red, orange, yellow, green, blue};
+rgb_color RAINBOW[7] = {red, orange, yellow, green, blue, indigo, violet};
+rgb_color LO_COLORS[4] = {green, blue, indigo, violet};
+
+rgb_color* color_palettes[3] = {HI_COLORS, RAINBOW, LO_COLORS};
+int palet_sizes[3] = {5, 7, 4};
+
+rgb_color* color_palette;
+
+int num_colors = 7;
+int8_t color_index;
+int cooldown;
+uint8_t decay_rate = 1;
+
+const int FAST_COOLDOWN = 15;
+const int MID_COOLDOWN = 30;
+const int SLOW_COOLDOWN = 50;
+
+int cur_cooldown = FAST_COOLDOWN;
+
+const int MAX_COLOR_VALUE = 255;
+
+// RGB LED Stuff
+const uint32_t G_PWM_CHANNEL = 2;
+const uint32_t R_PWM_CHANNEL = 1;
+const uint32_t B_PWM_CHANNEL = 3;
+
+const uint32_t G_PIN = 25;
+const uint32_t R_PIN = 26;
+const uint32_t B_PIN = 27;
+
+const int NOTIF_FETCH_TIME = 20000;
 
 //Some constants and some resources:
 const int RESPONSE_TIMEOUT = 6000; //ms to wait for response from host
@@ -131,6 +203,35 @@ void setup() {
                                   /*ledMode=*/MODE_MULTILED, /*sampleRate=*/SAMPLERATE_400, \
                                   /*pulseWidth=*/PULSEWIDTH_411, /*adcRange=*/ADCRANGE_16384);
 
+  // VIZ SETUP
+  // PWM Setup
+  ledcSetup(G_PWM_CHANNEL, 75, 8);
+  ledcAttachPin(G_PIN, G_PWM_CHANNEL);
+
+  ledcSetup(R_PWM_CHANNEL, 75, 8);
+  ledcAttachPin(R_PIN, R_PWM_CHANNEL);
+
+  ledcSetup(B_PWM_CHANNEL, 75, 8);
+  ledcAttachPin(B_PIN, B_PWM_CHANNEL);
+  
+  // PINs
+  pinMode(G_PIN, OUTPUT);
+  pinMode(R_PIN, OUTPUT);
+  pinMode(B_PIN, OUTPUT);
+
+  scaled_reading_for_green = 0;
+  scaled_reading_for_red = 0;
+  scaled_reading_for_blue = 0;
+
+  ledcWrite(G_PWM_CHANNEL, scaled_reading_for_green);
+  ledcWrite(R_PWM_CHANNEL, scaled_reading_for_red);
+  ledcWrite(B_PWM_CHANNEL, scaled_reading_for_blue);
+
+  color_index = -1;
+  cooldown = 0;
+  
+  reset_color_palette();
+
   hbs = HeartbeatSensor();
 
   primary_timer = millis();
@@ -151,7 +252,6 @@ void loop() {
 
   // audio
   rawReading = analogRead(A0);
-
   visualizeMusic(rawReading);
 
   handleDisplay(leftReading, middleReading, rightReading);
@@ -191,7 +291,7 @@ void handleDisplay(int leftReading, int middleReading, int rightReading) {
 }
 
 void fetchNotifications() {
-  if (millis() - timer > 5000) {
+  if (millis() - timer > NOTIF_FETCH_TIME) {
     request[0] = '\0'; //set 0th byte to null
     sprintf(request, "GET http://608dev-2.net/sandbox/sc/team65/raul/final_project_server_code.py?action=get_invites&username=%s\r\n",username);
     strcat(request, "Host: 608dev-2.net\r\n"); //add more to the end
@@ -239,7 +339,7 @@ void idleState(int leftReading, int middleReading, int rightReading) {
     primary_timer = millis();
 
       //displays options...fetch current song
-    tft.println("State: Idle. \n\nPress right button to display song info.");
+    tft.println("State: Idle. \n\nPress left button to display song info.");
 
   }
 
@@ -251,19 +351,6 @@ void idleState(int leftReading, int middleReading, int rightReading) {
       state_change = true;
 
       tft.println("Requesting Song...");
-      // TODO actually request the song...
-      delay(2000);
-      tft.fillScreen(TFT_BLACK);
-  } else if (middleReading) {
-    state = pulse_recommendation;
-    state_change = true;
-  } else if(rightReading){ //button 3 is pressed --> Song List
-      tft.fillScreen(TFT_BLACK);
-
-      tft.println("Displaying song list...");
-      delay(2000);
-      tft.fillScreen(TFT_BLACK);
-
   }
 }
 
@@ -308,9 +395,6 @@ void songMenuState(int leftReading, int middleReading, int rightReading) {
     
     if(leftReading == 1){ // sync visualization
       state = vis_menu;
-      tft.fillScreen(TFT_BLACK);
-      tft.println("Initializing \nVisualization...");
-      delay(2000);
       tft.fillScreen(TFT_BLACK);
       count = 0;
 
@@ -398,25 +482,10 @@ void handleLiked(int rightReading) {
 // VISUALIZATION MENU
 
 void visMenuState(int leftReading, int middleReading, int rightReading) {
-  tft.println("State: Visualization Screen\n\nSong: Peaches\n\nLight strobes based \non current beat/pitch");
-  //create object of dan's class and call run() to start visualization
-
-
-  if(leftReading){ //next song
-    tft.fillScreen(TFT_BLACK);
-    tft.println("Fetching next song...");
-    delay(2000); //delay 3 seconds
-    tft.fillScreen(TFT_BLACK);
-
-  }
-  else if(rightReading){ // go back to idle
-    state = idle;
-    tft.fillScreen(TFT_BLACK);
-    tft.println("Going back to idle state...");
-    delay(2000);
-    tft.fillScreen(TFT_BLACK);
-
-  }
+  tft.fillScreen(TFT_BLACK);
+  tft.println("Syncing...");
+  syncMusic();
+  state = song_menu;
 }
 
 // GROUPS MENU
@@ -494,17 +563,20 @@ void displayBPM() {
 void recommendedSongState(int leftReading, int middleReading, int rightReading) {
   state_change = false;
   tft.println(recSongBuffer);
-  tft.println("\n Press center button to go back to home.");
+  tft.println("\n Press left button to go back to home.");
 
-  if (middleReading) {
-    state = idle;
+  if (leftReading) {
+    tft.fillScreen(TFT_BLACK);
+    tft.println("Going back...");
+    state = song_menu;
     state_change = true;
   }
 }
 
 void getSongByBPM(int bpm) {
-  request[0] = '\0';
-  recSongBuffer[0] = '\0';
+  memset(response, 0, OUT_BUFFER_SIZE);
+  memset(request, 0, sizeof(request));
+  memset(recSongBuffer, 0, OUT_BUFFER_SIZE);
   // http://608dev-2.net/sandbox/sc/team65/michael/bpm.py?bpm=65
   sprintf(request, "GET http://608dev-2.net/sandbox/sc/team65/michael/bpm.py?bpm=%i HTTP/1.1\r\n",bpm);
   strcat(request, "Host: 608dev-2.net\r\n"); //add more to the end
@@ -516,12 +588,94 @@ void getSongByBPM(int bpm) {
 // VISUALIZATION
 
 void visualizeMusic(uint16_t raw_reading) {
-  Serial.println("DUMMY FUNCTION");
-  // TODO DAN
+  if (raw_reading > BEAT_THRESHOLD && cooldown == 0) {
+    color_index = (color_index + 1) % num_colors;
+    cur_rgb_color = color_palette[color_index];
+    set_colors(cur_rgb_color);
+    cooldown = cur_cooldown;
+  } else {
+    if (cooldown % 3 == 0) {
+      decay_colors();
+    }
+  }
+
+  cooldown--;
+  if (cooldown < 0) cooldown = 0;
+
+  write_colors();
 }
 
 void syncMusic() {
-  // TODO DAN - this is just a helper function to sync with the server like u had in your demo
+  set_color_palette();
+}
+
+void lookup(char* response, int response_size, char* key) {
+  char request_buffer[200];
+  sprintf(request_buffer, "GET /sandbox/sc/team65/dan/get_spotify_data.py?%s HTTP/1.1\r\n", key);
+  strcat(request_buffer, "Host: 608dev-2.net\r\n");
+  strcat(request_buffer, "\r\n"); //new line from header to body
+
+  do_http_request("608dev-2.net", request_buffer, response, response_size, RESPONSE_TIMEOUT, true);
+  response[5] = '\0';
+}
+
+void reset_color_palette() {
+  color_palette = RAINBOW;
+  num_colors = 7;
+  color_index = 0;
+}
+
+void set_color_palette() {
+  sprintf(key, "color_metric");
+  memset(response, 0, sizeof(response));
+  lookup(response, sizeof(response), key);
+  float color_metric = atof(response);
+  int idx;
+  if (color_metric > UP_THRESH) {
+    Serial.println("HIGH TEMPO COLORS");
+    color_palette = color_palettes[0];
+    num_colors = palet_sizes[0];
+    cur_cooldown = FAST_COOLDOWN;
+  } else if (color_metric > MID_THRESH) {
+    Serial.println("MID TEMPO COLORS");
+    color_palette = color_palettes[1];
+    num_colors = palet_sizes[1];
+    cur_cooldown = MID_COOLDOWN;
+  } else {
+    Serial.println("LOW TEMPO COLORS");
+    color_palette = color_palettes[2];
+    num_colors = palet_sizes[2];
+    cur_cooldown = SLOW_COOLDOWN;
+  }
+  color_index = 0;
+}
+
+bool in_thresh(int val, int low, int high) {
+  return (val >= low && val < high);
+}
+
+void set_colors(rgb_color COLOR) {
+  scaled_reading_for_red   = COLOR.r;
+  scaled_reading_for_blue  = COLOR.b;
+  scaled_reading_for_green = COLOR.g;
+}
+
+void decay_colors() {
+  if (scaled_reading_for_red > 0) {
+    scaled_reading_for_red -= decay_rate;
+  }
+  if (scaled_reading_for_blue > 0) {
+    scaled_reading_for_blue -= decay_rate;
+  }
+  if (scaled_reading_for_green > 0) {
+    scaled_reading_for_green -= decay_rate;
+  }
+}
+
+void write_colors() {
+  ledcWrite(G_PWM_CHANNEL, scaled_reading_for_green);
+  ledcWrite(R_PWM_CHANNEL, scaled_reading_for_red);
+  ledcWrite(B_PWM_CHANNEL, scaled_reading_for_blue);
 }
 
 void initOptions() {
