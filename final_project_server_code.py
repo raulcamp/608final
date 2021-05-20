@@ -98,23 +98,23 @@ def request_handler(request):
         if action == "play_song":
             song = request['form']['song']
             token = request['form']['token']
-            market = 'US'
-            additional_types='episode'
             endpoint = 	'https://api.spotify.com/v1/me/player/queue'
             OAUTH_TOKEN = f'Bearer {token}'
             requests.post(endpoint, params={'uri': song}, headers={'Authorization': OAUTH_TOKEN})
+            endpoint = 'https://api.spotify.com/v1/me/player/next'
+            requests.post(endpoint, headers={'Authorization': OAUTH_TOKEN})
             return
         group_name = request['form']['group_name']
-        if action == "make_playlist":
-            token = request['form']['token']
-            other_endpoint = 'https://api.spotify.com/v1/users/jayliner66'
-            endpoint = 'https://api.spotify.com/v1/users/jayliner66/playlists'
-            market='US'
-            additional_types='episode'
-            OAUTH_TOKEN = f'Bearer {token}'
-            # return requests.get(other_endpoint, params={'market': market, 'additional_types': additional_types}, headers={'Authorization': OAUTH_TOKEN})
-            req = requests.post(endpoint, data={'name': group_name, 'description': 'playlist of liked songs in '+group_name, 'public': False}, headers={'Authorization': OAUTH_TOKEN, 'Accept': "application/json", "Content-type": "application/json"})
-            return req
+        # if action == "make_playlist":
+        #     token = request['form']['token']
+        #     other_endpoint = 'https://api.spotify.com/v1/users/jayliner66'
+        #     endpoint = 'https://api.spotify.com/v1/users/jayliner66/playlists'
+        #     market='US'
+        #     additional_types='episode'
+        #     OAUTH_TOKEN = f'Bearer {token}'
+        #     # return requests.get(other_endpoint, params={'market': market, 'additional_types': additional_types}, headers={'Authorization': OAUTH_TOKEN})
+        #     req = requests.post(endpoint, data={'name': group_name, 'description': 'playlist of liked songs in '+group_name, 'public': False}, headers={'Authorization': OAUTH_TOKEN, 'Accept': "application/json", "Content-type": "application/json"})
+        #     return req
         username = request['form']['username']
         with sqlite3.connect(group_db) as c:
             c.execute('''CREATE TABLE IF NOT EXISTS group_data (group_name text, username text, passcode text);''')
