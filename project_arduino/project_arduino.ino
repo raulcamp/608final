@@ -38,8 +38,8 @@ int state_change;
 #define IDLE 0
 #define PRESSED 1
 
-char network[] = "Familia Campos 2.4G";
-char password[] = "Campos2000";
+char network[] = "";
+char password[] = "";
 /* Having network issues since there are 50 MIT and MIT_GUEST networks?. Do the following:
     When the access points are printed out at the start, find a particularly strong one that you're targeting.
     Let's say it is an MIT one and it has the following entry:
@@ -61,11 +61,11 @@ byte bssid[] = {0x04, 0x95, 0xE6, 0xAE, 0xDB, 0x41}; //6 byte MAC address of AP 
 
 char host[] = "608dev-2.net";
 // input spotify or custom username
-char username[] = "Dan";
+char username[] = "";
 // input user oath token (get temporary token here: https://developer.spotify.com/console/get-users-currently-playing-track/?market=&additional_types=)
 // when selecting scopes, in addition to 'user-read-currently-playing' please also check 'user-modify-playback-state' so that you can also play shared songs
 // tokens expire pretty quickly so you may need to get a new token if the code just suddenly breaks
-char SPOTIFY_OATH_TOKEN[] = "BQBvQ8MEn99umF8oOjgv-U0qP8xSwSXchjWGf_jJ4D9AYpB46Gq-KU5ICAsW0qd_jXobxGJjJ4WjFri2OXgNntGIIU6ZM4B8Nww0QZIHIWhCnYp-DV_t6Bdzg2AxxwQfg_-iUY-vQlqe1UmbBEQJL4taFYp16z9V1BSPVh9-Eo85ireZ3F_P6ibzl9BorQZssxW570LP";
+char SPOTIFY_OATH_TOKEN[] = "";
 
 // AUDIO VISUALIZATION
 
@@ -144,7 +144,7 @@ const int NOTIF_FETCH_TIME = 20000;
 //Some constants and some resources:
 const int RESPONSE_TIMEOUT = 6000; //ms to wait for response from host
 const uint16_t IN_BUFFER_SIZE = 2000;
-const uint16_t OUT_BUFFER_SIZE = 2000; //size of buffer to hold HTTP response
+const uint16_t OUT_BUFFER_SIZE = 4000; //size of buffer to hold HTTP response
 char request[IN_BUFFER_SIZE];
 char response[OUT_BUFFER_SIZE]; //char array buffer to hold HTTP request
 
@@ -773,7 +773,8 @@ void initOptions() {
   sprintf(request, "GET http://608dev-2.net/sandbox/sc/team65/raul/final_project_server_code.py?action=get_groups&username=%s\r\n",username);
   strcat(request, "Host: 608dev-2.net\r\n"); //add more to the end
   strcat(request, "\r\n"); //add blank line!
-  do_http_request("608dev-2.net", request, response, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, false);
+  do_http_request("608dev-2.net", request, response, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, true);
+  Serial.println("what actually comes out:");
   Serial.println(response);
   StaticJsonDocument<1000> group_doc;
   deserializeJson(group_doc, response);
