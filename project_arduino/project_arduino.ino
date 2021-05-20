@@ -38,8 +38,8 @@ int state_change;
 #define IDLE 0
 #define PRESSED 1
 
-char network[] = "Hinckley 1";
-char password[] = "StayHinckley1";
+char network[] = "";
+char password[] = "";
 /* Having network issues since there are 50 MIT and MIT_GUEST networks?. Do the following:
     When the access points are printed out at the start, find a particularly strong one that you're targeting.
     Let's say it is an MIT one and it has the following entry:
@@ -249,13 +249,13 @@ void loop() {
   
 
   // pulse reading
-//  if (usingPulse) {
-//    bpm = hbs.update(particleSensor.getIR());
-//  }
+  if (usingPulse) {
+    bpm = hbs.update(particleSensor.getIR());
+  }
 
   // audio
-//  rawReading = analogRead(A0);
-//  visualizeMusic(rawReading);
+  rawReading = analogRead(A0);
+  visualizeMusic(rawReading);
 
   handleDisplay(leftReading, middleReading, rightReading);
 }
@@ -367,17 +367,14 @@ void songMenuState(int leftReading, int middleReading, int rightReading) {
     state_change = 0;
   }
 
-//  displayBPM();
+  displayBPM();
   
-//  if (invite[0] != '\0') {
-//    handleInvite(rightReading);
-//  } else if (shared[0] != '\0') {
-//    handleShared(rightReading); // TODO RAUL or TODO JAMES - should their be some kind of interaction with this notifcation? like a button press or something? at least to get out of it
-//  } else if (liked[0] != '\0') {
-//    handleLiked(rightReading); // TODO RAUL or TODO JAMES - should their be some kind of interaction with this notifcation? like a button press or something? at least to get out of it
-//    
-//  } 
-  if (0) {
+  if (invite[0] != '\0') {
+    handleInvite(rightReading);
+  } else if (shared[0] != '\0') {
+    handleShared(rightReading); // TODO RAUL or TODO JAMES - should their be some kind of interaction with this notifcation? like a button press or something? at least to get out of it
+  } else if (liked[0] != '\0') {
+    handleLiked(rightReading); // TODO RAUL or TODO JAMES - should their be some kind of interaction with this notifcation? like a button press or something? at least to get out of it
   } else { // Song Menu
     
     //tft.setCursor(1, 15);
@@ -741,63 +738,6 @@ void nextOption(int option) {
     }
     tft.println(groups[i]);
   }
-//  switch (option) {
-//    case 0:
-//      tft.setCursor(5, 60, 2);
-//      tft.fillRect(0, 60, 100, 15, TFT_BLACK);
-//      tft.setTextColor(TFT_GREEN, TFT_BLACK);
-//      tft.println(groups[4]);
-//
-//      tft.setCursor(5, 0, 2);
-//      tft.fillRect(0, 0, 100, 15, TFT_GREEN);
-//      tft.setTextColor(TFT_BLACK, TFT_BLACK);
-//      tft.println(groups[0]);
-//      break;
-//    case 1:
-//      tft.setCursor(5, 0, 2);
-//      tft.fillRect(0, 0, 100, 15, TFT_BLACK);
-//      tft.setTextColor(TFT_GREEN, TFT_BLACK);
-//      tft.println(groups[0]);
-//
-//      tft.setCursor(5, 15, 2);
-//      tft.fillRect(0, 15, 100, 15, TFT_GREEN);
-//      tft.setTextColor(TFT_BLACK, TFT_BLACK);
-//      tft.println(groups[1]);
-//      break;
-//    case 2:
-//      tft.setCursor(5, 15, 2);
-//      tft.fillRect(0, 15, 100, 15, TFT_BLACK);
-//      tft.setTextColor(TFT_GREEN, TFT_BLACK);
-//      tft.println(groups[1]);
-//
-//      tft.setCursor(5, 30, 2);
-//      tft.fillRect(0, 30, 100, 15, TFT_GREEN);
-//      tft.setTextColor(TFT_BLACK, TFT_BLACK);
-//      tft.println(groups[2]);
-//      break;
-//    case 3:
-//      tft.setCursor(5, 30, 2);
-//      tft.fillRect(0, 30, 100, 15, TFT_BLACK);
-//      tft.setTextColor(TFT_GREEN, TFT_BLACK);
-//      tft.println(groups[2]);
-//
-//      tft.setCursor(5, 45, 2);
-//      tft.fillRect(0, 45, 100, 15, TFT_GREEN);
-//      tft.setTextColor(TFT_BLACK, TFT_BLACK);
-//      tft.println(groups[3]);
-//      break;
-//    case 4:
-//      tft.setCursor(5, 45, 2);
-//      tft.fillRect(0, 45, 100, 15, TFT_BLACK);
-//      tft.setTextColor(TFT_GREEN, TFT_BLACK);
-//      tft.println(groups[3]);
-//
-//      tft.setCursor(5, 60, 2);
-//      tft.fillRect(0, 60, 100, 15, TFT_GREEN);
-//      tft.setTextColor(TFT_BLACK, TFT_BLACK);
-//      tft.println(groups[4]);
-//      break;
-//  }
 }
 
 // NETWORK STUFF
