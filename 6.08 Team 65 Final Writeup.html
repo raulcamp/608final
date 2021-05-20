@@ -1,0 +1,182 @@
+<meta charset="utf-8" emacsmode="-*- markdown -*-"><link rel="stylesheet" href="https://casual-effects.com/markdeep/latest/apidoc.css?">
+
+                          **6.08 Team 65 Final Writeup - Music Buddy**
+
+# Synopsis
+
+Music permeates every aspect of our lives and most everyone nowadays enjoys music through some kind of online streaming platform. Spotify in particular boasts some 345 million active monthly users on its platform alone. While the streaming service in itself does a phenomenal job of delivering the songs we love right to our headsets and speakers, it does not encapsulate the full potential music-listening-experience. By combining all that Spotify does so well with all that our ESP32 does so well, we can create a system that fuses our physical environment with the song we are listening to.
+
+# Overview
+
+Our goal with Music Buddy was to develop a system that could
+
+- Receive physical input to select songs beyond just a button
+- Visualize the currently playing music with lights and colors
+- Facilitate some kind of social aspect between users e.g. sharing and liking songs
+
+Some key subgoals that we wanted to tackle:
+
+- Incorporate "rhythm of the world" by reading a heartbeat or a step count and translating it to a song with matching rhythm
+- Implement seamless and dynamic notifications which would appear in near-real time and present the user with interactive options
+- Visualize music in a way that combines the high level features of a song (from Spotify) with the beat-by-beat analog information from a speaker/microphone
+
+# Video Demo
+
+TBD
+
+![Video Demo](https://youtu.be/NmTJJTQTzZc)
+
+# Functional Block Diagram
+
+![Functional Block Diagram of our System](https://drive.google.com/uc?export=download&id=1Yo8ud_TuuhZZrhPu_yJjZEwnFxJwWAgJ)
+
+# State Diagram
+
+![State Diagram of our System](https://drive.google.com/uc?export=download&id=1-zkSbEXgrBXzXKZ5A27XnqF_lGQw3L1l)
+
+# Parts List
+
+The only additional parts we ordered were Heart Rate Sensor Modules [MAX30102](https://www.amazon.com/MAX30102-Detection-Concentration-Compatible-Arduino/dp/B07ZQNC8XP/ref=asc_df_B07ZQNC8XP/?tag=hyprod-20&linkCode=df0&hvadid=459704843517&hvpos=&hvnetw=g&hvrand=5166322811039696387&hvpone=&hvptwo=&hvqmt=&hvdev=c&hvdvcmdl=&hvlocint=&hvlocphy=1018127&hvtargid=pla-914929956645&psc=1).
+
+From the class kit, we used the accelerometer, the LCD, the ESP32, the RGB LED, three buttons, and the microphone.
+
+# Discussion
+
+Combine all of your milestones here to give an overview of the design process, include video demos along the way.
+
+
+## BPM-based Recommendation
+
+A central component for several of our subgoals was the ability to find songs based solely by their BPM (beats per minute). This was a little challenging at first, as it was not quite as straightforward as querying the Spotify API. In fact, Spotify offers no endpoints to search for songs by anything besides artist/title/name. So we had to explore other options. We found [this website](https://www.cs.ubc.ca/~davet/music/bpm/), which contained hyperlinks to webpages full of songs based on their BPM. We wrote a script to, given a target BPM, identify the closest actual BPM available, and then format an HTTP GET request to fetch the HTML document containing all of the songs. We then used BeautifulSoup to scrape through all of the entries and assemble a plaintext collection of songs and their artists. From there, we randomly sampled that collection to return a random song of correct BPM to the user. Putting this function on an endpoint on our server was simple enough, and from then-on we could query a endpoint on our server with just a bpm value to receive `SONG by ARTIST` in return. An example of this can be seen at the end of Michael's Week 1 Milestone video, below:
+
+![Fetching a song from a BPM](https://youtu.be/_0jCG0o-tIE)
+
+## Heartbeat System
+
+The first challenge to integrating the heartbeat sensor was phsyically wiring it up with our hardware and installing the libraries so that we could actually receive data from the module. We wired it up according to the specification and downloaded and installed its associated software library from GitHub. We then created a wrapper class HeartbeatSensor, which was able to ingest raw readings from the sensor and convert it to a running average of pulse rate over time. It did this in a similar manner to how we calculated steps in lab but on a much finer scale. It kept track of the last 100 readings and calculated the mean and standard deviation for each. If any particular value was over one standard deviation of the mean, it was registered as a beat and did not come down until it fell below a half standard average again. Experimentally this worked out quite well, and when the user kept my finger still (an apparent prerequisite for this sensor’s use), one could feel their pulse and see it updating on screen in realtime.
+
+We computed the BPM by keeping track of the measurement start time and the current time and taking an average over time. From there, it was a matter of some small UI changes and sending a GET request to the existing server code which could recommend a song based on that BPM.
+
+A particular challenge in this integration was the sensitivity of the sensor. Under perfect conditions, with the sensor truly still, the reading was pretty accurate. Unfortunately, ideal conditions were somewhat annoying to achieve. We were unable to create a final product which fully removed the need for such ideal conditions, though some options could have been to denoise the signal or not accept values above certain thresholds (heartbeats, while distinct, produced nowhere near the readings as a jolt or tap of the sensor).
+
+An example of the functional heartbeat sensor can be seen in Michael's Week 3 and Week 4 milestone demos, below:
+
+![Heartbeat sensor reading pulse and working in isolation](https://youtu.be/S0oJR67IOi4)
+
+![Heartbeat sensor working with full system integration, including fetching a song by BPM](https://youtu.be/NmTJJTQTzZc)
+
+## Music Visualization
+
+## User Management
+
+## Liking and sharing
+
+## Step-based Song Recommendation
+
+
+# Code Overview
+
+## Python Code
+
+### `bpm.py`
+
+This is the script which contained all of our web scraping as defined in [the BPM section](#bpm-basedrecommendation). It accepts an HTTP GET request, sends a request to the aforementioned song website, scrapes it to extract songs, chooses a random one, and returns it.
+
+### PUT PYTHON FILES HERE WITH ~ PARAGRAPH EXPLANATION OF FUNCTION
+
+## Arduino Code
+
+### `project_arduino.ino`
+
+This file housed nearly all of our arduino code. In our `setup()` we initialize all of our sensors, timers, and output IO pins.
+
+In `loop()` we take readings from our buttons, our microphone, and our heartbeat sensor. We then take all of this information and feed it to `handleDisplay()` which handled state and display for our system.
+
+#### `handleDisplay()`
+
+This is the function that housed our state machine. States were further compartmentalized into their own functions, which we will go over in the following sections. The entire function was quite compact due to the way that we wrote our code.
+
+```cpp
+void handleDisplay(int leftReading, int middleReading, int rightReading) {
+    fetchNotifications();
+    
+    tft.setCursor(0,0,1); // reset cursor at the top of the screen
+  
+    if (state_change) {
+      tft.fillScreen(TFT_BLACK);
+      state_change = false;
+    }
+  
+    switch(state){
+  
+      case idle: //Menu State
+          idleState(leftReading, middleReading, rightReading);
+          break;
+      case song_menu: //Here the user has option to fetch vis or display song name
+          songMenuState(leftReading, middleReading, rightReading);
+          break;
+      case vis_menu: //Vis menu
+          visMenuState(leftReading, middleReading, rightReading);
+          break;  
+      case groups_menu: // Groups menu
+          groupsMenuState(leftReading, middleReading, rightReading);
+          break;
+      case pulse_recommendation:
+          pulseRecommendationState(leftReading, middleReading, rightReading);
+          break;
+      case recommended_song:
+          recommendedSongState(leftReading, middleReading, rightReading);
+          break;
+    }
+  }
+```
+
+
+#### `idleState()`
+
+This was simply the state that greeted users on system start. They were met with instructions to press the left button to proceed to the Song Menu. Pressing the left button transitioned to the Song Menu state. On transition, our system fetched the current playing song.
+
+#### `songMenuState()`
+
+This was the "hub" of our system. If there was a song playing, it was displayed at the top of the screen. If there was a BPM detected, it was displayed beneath the song.
+
+This is also where notifications were displayed, with the logic governing them based on whether or not the notification strings were empty or had content.
+
+Based on user input via the buttons, we sent them off to other states, with instructions describing how to transition and come back.
+
+#### `visMenuState()`
+
+#### `groupsMenuState()`
+
+#### `pulseRecommendationState()`
+
+This was a one-cycle state. Upon entry, an HTTP request targetting our BPM endpoint was formed and sent via `getSongByBPM()`. Upon receiving a response, the user was sent to the recommendedSongState.
+
+#### `recommendedSongState()`
+
+In this state, the user was presented with the recommended song on the display. They could return to the home screen by pressing a button.
+
+#### OTHER FUNCTIONS YOU GUYS WANT TO TALK ABOUT
+
+### `Button.cpp`
+
+This was the out-of-the-box button code that we have used all semester.
+
+### `HeartbeatSensor.cpp`
+
+This file contained a class which wrapped our Heartbeat Sensor module, ingesting a reading every loop and computing a running average BPM from it. It used a sliding window to keep track of beats and the relative time deltas with which it computed BPM as `bpm = NUM_PULSES / TIME_ELAPSED`.
+
+## Database Overview
+
+what were the entries in our databse? what did they look like? example?
+
+# Thank you!
+
+A big thank you from the whole team for an awesome class! - Raul, Michael, Dan, James, Mark
+
+
+
+
+
+<style class="fallback">body{visibility:hidden}</style><script>markdeepOptions={tocStyle:'medium'};</script>
+<!-- Markdeep: --><script src="https://casual-effects.com/markdeep/latest/markdeep.min.js?" charset="utf-8"></script>
