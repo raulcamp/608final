@@ -20,7 +20,7 @@ const int BUTTON_PIN2 = 5;
 const int BUTTON_PIN3 = 3;
 
 const int LOOP_PERIOD = 40;
-const int MAX_GROUPS = 100;
+const int MAX_GROUPS = 10;
 int state;
 int group_state;
 int option_state;
@@ -61,9 +61,11 @@ byte bssid[] = {0x04, 0x95, 0xE6, 0xAE, 0xDB, 0x41}; //6 byte MAC address of AP 
 
 char host[] = "608dev-2.net";
 // input spotify or custom username
-char username[] = "";
+char username[] = "invited_friend";
 // input user oath token (get temporary token here: https://developer.spotify.com/console/get-users-currently-playing-track/?market=&additional_types=)
-char SPOTIFY_OATH_TOKEN[] = "";
+// when selecting scopes, in addition to 'user-read-currently-playing' please also check 'user-modify-playback-state' so that you can also play shared songs
+// tokens expire pretty quickly so you may need to get a new token if the code just suddenly breaks
+char SPOTIFY_OATH_TOKEN[] = "BQB2c5vLciaWJQEAElR870oVg0zaRaIcubsOB9adXrP-xyqLbutHjkLQtBDX-peMevUGxLAQszZ7jztT-M7UA9aq3zChiFCAGxz5K2JmtQ2TdE3eU6_Kr-WS15hzDKQj6tmG4mkCrJnEatL9J2SVAhyvTJ9pp8m9pNf5IcUGeJOicKCYjv7P1O9ugxQfPrRYa9dipLX6kkhsQR87";
 
 // AUDIO VISUALIZATION
 
@@ -147,7 +149,9 @@ char request[IN_BUFFER_SIZE];
 char response[OUT_BUFFER_SIZE]; //char array buffer to hold HTTP request
 
 char recSongBuffer[OUT_BUFFER_SIZE];
+char songNameAndURI[OUT_BUFFER_SIZE];
 char songBuffer[OUT_BUFFER_SIZE];
+char songURI[OUT_BUFFER_SIZE];
 
 char groups[MAX_GROUPS][80];
 char invite[1000];
@@ -171,11 +175,11 @@ unsigned long primary_timer;
 void setup() {
 
   int tryCounter = 0;
-  usingPulse = true;
+  usingPulse = false;
   while (!particleSensor.begin() && tryCounter < 5) {
     Serial.println("MAX30102 was not found");
     tryCounter++;
-    delay(1000);
+    delay(2000);
   }
 
   if (tryCounter >= 5) usingPulse = false;
@@ -254,9 +258,8 @@ void loop() {
   }
 
   // audio
-  rawReading = analogRead(A0);
-  visualizeMusic(rawReading);
-
+//  rawReading = analogRead(A0);
+//  visualizeMusic(rawReading);
   handleDisplay(leftReading, middleReading, rightReading);
 }
 
@@ -264,12 +267,10 @@ void handleDisplay(int leftReading, int middleReading, int rightReading) {
   fetchNotifications();
   
   tft.setCursor(0,0,1); // reset cursor at the top of the screen
-
   if (state_change) {
     tft.fillScreen(TFT_BLACK);
     state_change = false;
   }
-
   switch(state){
 
     case idle: //Menu State
@@ -301,7 +302,7 @@ void fetchNotifications() {
     strcat(request, "\r\n"); //add blank line!
     do_http_request("608dev-2.net", request, response, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, false);
     Serial.println(response);
-    if (response[0] != 'Z') {
+    if (strcmp(response,"NO INVITES") != 0) {
       strcat(invite, response);
       state_change = 1;
     } else {
@@ -310,19 +311,9 @@ void fetchNotifications() {
       strcat(request, "Host: 608dev-2.net\r\n"); //add more to the end
       strcat(request, "\r\n"); //add blank line!
       do_http_request("608dev-2.net", request, response, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, false);
-      if (response[0] != 'Z') {
+      if (strcmp(response,"NO SHARED") != 0) {
         strcat(shared, response);
         state_change = 1;
-      } else {
-        request[0] = '\0'; //set 0th byte to null
-        sprintf(request, "GET http://608dev-2.net/sandbox/sc/team65/raul/final_project_server_code.py?action=get_liked&username=%s\r\n",username);
-        strcat(request, "Host: 608dev-2.net\r\n"); //add more to the end
-        strcat(request, "\r\n"); //add blank line!
-        do_http_request("608dev-2.net", request, response, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, false);
-        if (response[0] != 'Z') {
-          strcat(liked, response);
-          state_change = 1;
-        }
       } 
     }
     
@@ -350,6 +341,7 @@ void idleState(int leftReading, int middleReading, int rightReading) {
       
 
       tft.println("Requesting Song...");
+      getCurrentSong();
   }
 }
 
@@ -370,7 +362,7 @@ void songMenuState(int leftReading, int middleReading, int rightReading) {
   displayBPM();
   
   if (invite[0] != '\0') {
-    handleInvite(rightReading);
+    handleInvite(leftReading, rightReading);
   } else if (shared[0] != '\0') {
     handleShared(rightReading); // TODO RAUL or TODO JAMES - should their be some kind of interaction with this notifcation? like a button press or something? at least to get out of it
   } else if (liked[0] != '\0') {
@@ -402,11 +394,20 @@ void songMenuState(int leftReading, int middleReading, int rightReading) {
       tft.fillScreen(TFT_BLACK);
       count = 0;
     }
-    else if(middleReading){ // Like song
+    else if(middleReading == 1){ // Like song
       tft.fillScreen(TFT_BLACK);
       tft.println("Liking Song...");
       count = 0;
-      delay(2000);
+      delay(1000);
+      tft.fillScreen(TFT_BLACK);
+      initOptions();
+      state = groups_menu;
+    }
+    else if(middleReading == 2){ // Like song
+      tft.fillScreen(TFT_BLACK);
+      tft.println("Making Playlist...");
+      count = 2;
+      delay(1000);
       tft.fillScreen(TFT_BLACK);
       initOptions();
       state = groups_menu;
@@ -423,12 +424,28 @@ void songMenuState(int leftReading, int middleReading, int rightReading) {
   }
 }
 
-void handleInvite(int rightReading) {
+void handleInvite(int leftReading, int rightReading) {
   char output[80];
   sprintf(output, "\n\nNew invite: ->You have been invited to %s.", response);
   tft.setCursor(1, 15, 2);
   tft.println(output);
   tft.setCursor(1, 114, 1);
+
+  if (leftReading) {
+    char body[100];
+    sprintf(body,"action=rejected_join&username=%s&group_name=%s", username, invite);
+    int body_len = strlen(body);
+    sprintf(request,"POST http://608dev-2.net/sandbox/sc/team65/raul/final_project_server_code.py HTTP/1.1\r\n");
+    strcat(request,"Host: 608dev-2.net\r\n");
+    strcat(request,"Content-Type: application/x-www-form-urlencoded\r\n");
+    sprintf(request+strlen(request),"Content-Length: %d\r\n", body_len); //append string formatted to end of request buffer
+    strcat(request,"\r\n"); //new line from header to body
+    strcat(request,body); //body
+    strcat(request,"\r\n"); //new line
+    do_http_request("608dev-2.net", request, response, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, false);
+    invite[0] = '\0';
+    state_change = 1;
+  }
 
   if (rightReading) {
     char body[100];
@@ -447,16 +464,31 @@ void handleInvite(int rightReading) {
   }
 }
 
-void handleShared(int rightReading) {
-  char output[80];
-  sprintf(output, "\n\nNew shared song: ->The song %s has been shared with you.", response);
+void handleShared(int leftReading, int rightReading) {
+  songNameAndURI[0] = '\0';
+  songBuffer[0] = '\0';
+  songURI[0] = '\0';
+  sprintf(songNameAndURI, shared);
+  char *p = strtok(songNameAndURI,"`");
+  sprintf(songBuffer, p);
+  p = strtok(NULL, "`");
+  sprintf(songURI, p);
+  char output[500];
+  sprintf(output, "\n\nNew shared song: ->The song %s has been shared with you.", songBuffer);
   
   tft.setCursor(1, 15, 2);
   tft.println(output);
   tft.setCursor(1, 114, 1);
-  
-  if (rightReading || response[0] == 'Z') {
+
+  if(leftReading) {
     shared[0] = '\0';
+    state_change = 1;
+  }
+  if (rightReading) {
+    shared[0] = '\0';
+    tft.println("\nPlaying Song...");
+    playSong();
+    tft.fillScreen(TFT_BLACK);
     state_change = 1;
   }
 }
@@ -504,8 +536,8 @@ void groupsMenuState(int leftReading, int middleReading, int rightReading) {
   }
   else if (middleReading) { // confirm group
     if (count == 0) {
-        char body[100];
-        sprintf(body,"action=like&username=%s&group_name=%s&song=%s", username, groups[option_state], songBuffer);
+        char body[200];
+        sprintf(body,"action=like&username=%s&group_name=%s&song=%s", username, groups[option_state], songNameAndURI);
         int body_len = strlen(body);
         sprintf(request,"POST http://608dev-2.net/sandbox/sc/team65/raul/final_project_server_code.py HTTP/1.1\r\n");
         strcat(request,"Host: 608dev-2.net\r\n");
@@ -515,9 +547,22 @@ void groupsMenuState(int leftReading, int middleReading, int rightReading) {
         strcat(request,body); //body
         strcat(request,"\r\n"); //new line
         do_http_request("608dev-2.net", request, response, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, false);
-    } else {
-        char body[100];
-        sprintf(body,"action=share&username=%s&group_name=%s&song=%s", username, groups[option_state], songBuffer);
+    } else if (count == 1) {
+        char body[200];
+        Serial.println(songNameAndURI);
+        sprintf(body,"action=share&username=%s&group_name=%s&song=%s", username, groups[option_state], songNameAndURI);
+        int body_len = strlen(body);
+        sprintf(request,"POST http://608dev-2.net/sandbox/sc/team65/raul/final_project_server_code.py HTTP/1.1\r\n");
+        strcat(request,"Host: 608dev-2.net\r\n");
+        strcat(request,"Content-Type: application/x-www-form-urlencoded\r\n");
+        sprintf(request+strlen(request),"Content-Length: %d\r\n", body_len); //append string formatted to end of request buffer
+        strcat(request,"\r\n"); //new line from header to body
+        strcat(request,body); //body
+        strcat(request,"\r\n"); //new line
+        do_http_request("608dev-2.net", request, response, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, false);
+    } else { // still not implemented
+        char body[200];
+        sprintf(body,"action=make_playlist&group_name=%s&token=%s", groups[option_state], SPOTIFY_OATH_TOKEN);
         int body_len = strlen(body);
         sprintf(request,"POST http://608dev-2.net/sandbox/sc/team65/raul/final_project_server_code.py HTTP/1.1\r\n");
         strcat(request,"Host: 608dev-2.net\r\n");
@@ -685,16 +730,35 @@ void write_colors() {
 }
 
 void getCurrentSong() {
-  request[0] = '\0';
-  songBuffer[0] = '\0';
-  sprintf(request, "GET http://608dev-2.net/sandbox/sc/team65/michael/bpm.py?token=%s HTTP/1.1\r\n", SPOTIFY_OATH_TOKEN);
+  request[0] = '\0'; //set 0th byte to null
+  sprintf(request, "GET http://608dev-2.net/sandbox/sc/team65/raul/final_project_server_code.py?action=get_song&token=%s HTTP/1.1\r\n", SPOTIFY_OATH_TOKEN);
   strcat(request, "Host: 608dev-2.net\r\n"); //add more to the end
   strcat(request, "\r\n"); //add blank line!
-  Serial.println(response);
   do_http_request("608dev-2.net", request, response, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, true);
-  Serial.println(response);
-  sprintf(songBuffer, response);
+  sprintf(songNameAndURI, response);
+  char *p = strtok(response,"`");
+  sprintf(songBuffer, p);
+  p = strtok(NULL, "`");
+  sprintf(songURI, p);
+  Serial.println(songBuffer);
+  Serial.println(songURI);
 }
+
+void playSong() {
+  char body[100];
+  Serial.println(songURI);
+  sprintf(body,"action=play_song&song=%s&token=%s", songURI, SPOTIFY_OATH_TOKEN);
+  int body_len = strlen(body);
+  sprintf(request,"POST http://608dev-2.net/sandbox/sc/team65/raul/final_project_server_code.py HTTP/1.1\r\n");
+  strcat(request,"Host: 608dev-2.net\r\n");
+  strcat(request,"Content-Type: application/x-www-form-urlencoded\r\n");
+  sprintf(request+strlen(request),"Content-Length: %d\r\n", body_len); //append string formatted to end of request buffer
+  strcat(request,"\r\n"); //new line from header to body
+  strcat(request,body); //body
+  strcat(request,"\r\n"); //new line
+  do_http_request("608dev-2.net", request, response, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, false);
+}
+
 void initOptions() {
   request[0] = '\0'; //set 0th byte to null
   sprintf(request, "GET http://608dev-2.net/sandbox/sc/team65/raul/final_project_server_code.py?action=get_groups&username=%s\r\n",username);
@@ -707,6 +771,7 @@ void initOptions() {
   if (num_groups > 10) {
     num_groups = 10;
   }
+  Serial.println(num_groups);
   for(int i = 0; i < num_groups; i++) {
     groups[i][0] = '\0';
     strcat(groups[i], group_doc["groups"][i]);
