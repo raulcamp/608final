@@ -38,8 +38,8 @@ int state_change;
 #define IDLE 0
 #define PRESSED 1
 
-char network[] = "";
-char password[] = "";
+char network[] = "Familia Campos 2.4G";
+char password[] = "Campos2000";
 /* Having network issues since there are 50 MIT and MIT_GUEST networks?. Do the following:
     When the access points are printed out at the start, find a particularly strong one that you're targeting.
     Let's say it is an MIT one and it has the following entry:
@@ -61,11 +61,11 @@ byte bssid[] = {0x04, 0x95, 0xE6, 0xAE, 0xDB, 0x41}; //6 byte MAC address of AP 
 
 char host[] = "608dev-2.net";
 // input spotify or custom username
-char username[] = "";
+char username[] = "Dan";
 // input user oath token (get temporary token here: https://developer.spotify.com/console/get-users-currently-playing-track/?market=&additional_types=)
 // when selecting scopes, in addition to 'user-read-currently-playing' please also check 'user-modify-playback-state' so that you can also play shared songs
 // tokens expire pretty quickly so you may need to get a new token if the code just suddenly breaks
-char SPOTIFY_OATH_TOKEN[] = "";
+char SPOTIFY_OATH_TOKEN[] = "BQBvQ8MEn99umF8oOjgv-U0qP8xSwSXchjWGf_jJ4D9AYpB46Gq-KU5ICAsW0qd_jXobxGJjJ4WjFri2OXgNntGIIU6ZM4B8Nww0QZIHIWhCnYp-DV_t6Bdzg2AxxwQfg_-iUY-vQlqe1UmbBEQJL4taFYp16z9V1BSPVh9-Eo85ireZ3F_P6ibzl9BorQZssxW570LP";
 
 // AUDIO VISUALIZATION
 
@@ -258,8 +258,8 @@ void loop() {
   }
 
   // audio
-//  rawReading = analogRead(A0);
-//  visualizeMusic(rawReading);
+  rawReading = analogRead(A0);
+  visualizeMusic(rawReading);
   handleDisplay(leftReading, middleReading, rightReading);
 }
 
@@ -328,7 +328,13 @@ void fetchNotifications() {
 // IDLE
 
 void idleState(int leftReading, int middleReading, int rightReading) {
-  tft.println("Hello!\nIf you are currently listening to a song,\nthen press the left button to display song info.");
+  tft.println("\n       Hello!\n\nIf you are currently listening to a song,\npress the left button\n");
+  tft.println("\nVisualize your song, like/share it, or geta new song based off your heartbeat or\nstep speed!\n");
+  tft.fillCircle(65, 130, 20, TFT_GREEN);
+  tft.fillRect(55, 118, 20, 5, TFT_BLACK);
+  tft.fillRect(55, 128, 20, 5, TFT_BLACK);
+  tft.fillRect(55, 138, 20, 5, TFT_BLACK);
+  
 
   state_change = false;
 
@@ -336,7 +342,9 @@ void idleState(int leftReading, int middleReading, int rightReading) {
   // send request and retrieve song
       state = song_menu;
       state_change = true;
-      tft.println("Requesting Song...");
+      tft.fillScreen(TFT_BLACK);
+      tft.setCursor(0,0,1);
+      tft.println("\n\n   Finding Song...");
       getCurrentSong();
   }
 }
@@ -766,11 +774,12 @@ void initOptions() {
   strcat(request, "Host: 608dev-2.net\r\n"); //add more to the end
   strcat(request, "\r\n"); //add blank line!
   do_http_request("608dev-2.net", request, response, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, false);
-  StaticJsonDocument<500> group_doc;
+  Serial.println(response);
+  StaticJsonDocument<1000> group_doc;
   deserializeJson(group_doc, response);
   num_groups = group_doc["num_groups"];
-  if (num_groups > 10) {
-    num_groups = 10;
+  if (num_groups > 8) {
+    num_groups = 8;
   }
   Serial.println(num_groups);
   for(int i = 0; i < num_groups; i++) {
