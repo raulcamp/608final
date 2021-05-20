@@ -61,11 +61,11 @@ byte bssid[] = {0x04, 0x95, 0xE6, 0xAE, 0xDB, 0x41}; //6 byte MAC address of AP 
 
 char host[] = "608dev-2.net";
 // input spotify or custom username
-char username[] = "invited_friend";
+char username[] = "";
 // input user oath token (get temporary token here: https://developer.spotify.com/console/get-users-currently-playing-track/?market=&additional_types=)
 // when selecting scopes, in addition to 'user-read-currently-playing' please also check 'user-modify-playback-state' so that you can also play shared songs
 // tokens expire pretty quickly so you may need to get a new token if the code just suddenly breaks
-char SPOTIFY_OATH_TOKEN[] = "BQB2c5vLciaWJQEAElR870oVg0zaRaIcubsOB9adXrP-xyqLbutHjkLQtBDX-peMevUGxLAQszZ7jztT-M7UA9aq3zChiFCAGxz5K2JmtQ2TdE3eU6_Kr-WS15hzDKQj6tmG4mkCrJnEatL9J2SVAhyvTJ9pp8m9pNf5IcUGeJOicKCYjv7P1O9ugxQfPrRYa9dipLX6kkhsQR87";
+char SPOTIFY_OATH_TOKEN[] = "";
 
 // AUDIO VISUALIZATION
 
@@ -336,10 +336,6 @@ void idleState(int leftReading, int middleReading, int rightReading) {
   // send request and retrieve song
       state = song_menu;
       state_change = true;
-      Serial.println("Left pressed");
-      Serial.println("new state song menu");
-      
-
       tft.println("Requesting Song...");
       getCurrentSong();
   }
