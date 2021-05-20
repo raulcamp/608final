@@ -346,6 +346,7 @@ void idleState(int leftReading, int middleReading, int rightReading) {
       state_change = true;
 
       tft.println("Requesting Song...");
+      getCurrentSong();
   }
 }
 
@@ -366,7 +367,7 @@ void songMenuState(int leftReading, int middleReading, int rightReading) {
   displayBPM();
   
   if (invite[0] != '\0') {
-    handleInvite(rightReading);
+    handleInvite(leftReading, rightReading);
   } else if (shared[0] != '\0') {
     handleShared(rightReading); // TODO RAUL or TODO JAMES - should their be some kind of interaction with this notifcation? like a button press or something? at least to get out of it
   } else if (liked[0] != '\0') {
@@ -418,9 +419,9 @@ void songMenuState(int leftReading, int middleReading, int rightReading) {
   }
 }
 
-void handleInvite(int rightReading) {
+void handleInvite(int leftReading, int rightReading) {
   char output[80];
-  sprintf(output, "\n\nNew invite: ->You have been invited to %s.", response);
+  sprintf(output, "\n\nNew invite: ->You have been invited to %s.\nPress right to accept!\n\nPress left to dismiss.", response);
   tft.setCursor(1, 15, 2);
   tft.println(output);
   tft.setCursor(1, 114, 1);
@@ -439,6 +440,11 @@ void handleInvite(int rightReading) {
     do_http_request("608dev-2.net", request, response, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, false);
     invite[0] = '\0';
     state_change = 1;
+  } else if (leftReading) {
+    // TODO raul or james... this is a bug? cant dismiss invites. hackin it for demo
+    invite[0] = '\0';
+    state = song_menu;
+    tft.fillScreen(TFT_BLACK);
   }
 }
 
@@ -876,7 +882,7 @@ void do_http_request(char* host, char* request, char* response, uint16_t respons
       if (strcmp(response, "\r") == 0) { //found a blank line!
         break;
       }
-//      memset(response, 0, response_size);
+      memset(response, 0, response_size);
       if (millis() - count > response_timeout) break;
     }
 //    memset(response, 0, response_size);
@@ -884,6 +890,7 @@ void do_http_request(char* host, char* request, char* response, uint16_t respons
     while (client.available()) { //read out remaining text (body of response)
       char_append(response, client.read(), OUT_BUFFER_SIZE);
     }
+    Serial.println("TRUE RESPONSE:");
     if (serial) Serial.println(response);
     client.stop();
     if (serial) Serial.println("-----------");
