@@ -360,9 +360,9 @@ void songMenuState(int leftReading, int middleReading, int rightReading) {
   if (invite[0] != '\0') {
     handleInvite(leftReading, rightReading);
   } else if (shared[0] != '\0') {
-    handleShared(rightReading); // TODO RAUL or TODO JAMES - should their be some kind of interaction with this notifcation? like a button press or something? at least to get out of it
+    handleShared(leftReading, rightReading); 
   } else if (liked[0] != '\0') {
-    handleLiked(rightReading); // TODO RAUL or TODO JAMES - should their be some kind of interaction with this notifcation? like a button press or something? at least to get out of it
+    handleLiked(rightReading);
   } else { // Song Menu
     
     //tft.setCursor(1, 15);
