@@ -15,8 +15,8 @@ TFT_eSPI tft = TFT_eSPI();
 const int SCREEN_HEIGHT = 160;
 const int SCREEN_WIDTH = 128;
 // TODO: change pins depending on board config
-const int BUTTON_PIN1 = 5; 
-const int BUTTON_PIN2 = 19;
+const int BUTTON_PIN1 = 19; 
+const int BUTTON_PIN2 = 5;
 const int BUTTON_PIN3 = 3;
 
 const int LOOP_PERIOD = 40;
@@ -38,8 +38,8 @@ int state_change;
 #define IDLE 0
 #define PRESSED 1
 
-char network[] = ""; 
-char password[] = "";
+char network[] = "Hinckley 1";
+char password[] = "StayHinckley1";
 /* Having network issues since there are 50 MIT and MIT_GUEST networks?. Do the following:
     When the access points are printed out at the start, find a particularly strong one that you're targeting.
     Let's say it is an MIT one and it has the following entry:
@@ -120,9 +120,9 @@ int8_t color_index;
 int cooldown;
 uint8_t decay_rate = 1;
 
-const int FAST_COOLDOWN = 15;
-const int MID_COOLDOWN = 30;
-const int SLOW_COOLDOWN = 50;
+const int FAST_COOLDOWN = 150;
+const int MID_COOLDOWN = 300;
+const int SLOW_COOLDOWN = 500;
 
 int cur_cooldown = FAST_COOLDOWN;
 
@@ -133,9 +133,9 @@ const uint32_t G_PWM_CHANNEL = 2;
 const uint32_t R_PWM_CHANNEL = 1;
 const uint32_t B_PWM_CHANNEL = 3;
 
-const uint32_t G_PIN = 25;
-const uint32_t R_PIN = 26;
-const uint32_t B_PIN = 27;
+const uint32_t G_PIN = 27;
+const uint32_t R_PIN = 14;
+const uint32_t B_PIN = 12;
 
 const int NOTIF_FETCH_TIME = 20000;
 
@@ -246,15 +246,16 @@ void loop() {
   int leftReading = left.update();
   int middleReading = middle.update();
   int rightReading = right.update();
+  
 
   // pulse reading
-  if (usingPulse) {
-    bpm = hbs.update(particleSensor.getIR());
-  }
+//  if (usingPulse) {
+//    bpm = hbs.update(particleSensor.getIR());
+//  }
 
   // audio
-  rawReading = analogRead(A0);
-  visualizeMusic(rawReading);
+//  rawReading = analogRead(A0);
+//  visualizeMusic(rawReading);
 
   handleDisplay(leftReading, middleReading, rightReading);
 }
@@ -344,6 +345,9 @@ void idleState(int leftReading, int middleReading, int rightReading) {
   // send request and retrieve song
       state = song_menu;
       state_change = true;
+      Serial.println("Left pressed");
+      Serial.println("new state song menu");
+      
 
       tft.println("Requesting Song...");
   }
@@ -363,15 +367,17 @@ void songMenuState(int leftReading, int middleReading, int rightReading) {
     state_change = 0;
   }
 
-  displayBPM();
+//  displayBPM();
   
-  if (invite[0] != '\0') {
-    handleInvite(rightReading);
-  } else if (shared[0] != '\0') {
-    handleShared(rightReading); // TODO RAUL or TODO JAMES - should their be some kind of interaction with this notifcation? like a button press or something? at least to get out of it
-  } else if (liked[0] != '\0') {
-    handleLiked(rightReading); // TODO RAUL or TODO JAMES - should their be some kind of interaction with this notifcation? like a button press or something? at least to get out of it
-    
+//  if (invite[0] != '\0') {
+//    handleInvite(rightReading);
+//  } else if (shared[0] != '\0') {
+//    handleShared(rightReading); // TODO RAUL or TODO JAMES - should their be some kind of interaction with this notifcation? like a button press or something? at least to get out of it
+//  } else if (liked[0] != '\0') {
+//    handleLiked(rightReading); // TODO RAUL or TODO JAMES - should their be some kind of interaction with this notifcation? like a button press or something? at least to get out of it
+//    
+//  } 
+  if (0) {
   } else { // Song Menu
     
     //tft.setCursor(1, 15);
@@ -388,6 +394,8 @@ void songMenuState(int leftReading, int middleReading, int rightReading) {
     
     if(leftReading == 1){ // sync visualization
       state = vis_menu;
+      Serial.println("left pressed");
+      Serial.println("new state visualization");
       tft.fillScreen(TFT_BLACK);
       count = 0;
 
@@ -476,7 +484,17 @@ void visMenuState(int leftReading, int middleReading, int rightReading) {
   tft.fillScreen(TFT_BLACK);
   tft.println("Syncing...");
   syncMusic();
+  tft.fillScreen(TFT_BLACK);
+  tft.println("Visualization");
+  tft.println("Press Left to go back to song menu");
+  Serial.println("Visualize");
+  while (digitalRead(BUTTON_PIN1)) {
+    rawReading = analogRead(A0);
+    visualizeMusic(rawReading);
+  }
+  Serial.println("EXIT");
   state = song_menu;
+  Serial.println("new state song menu");
 }
 
 // GROUPS MENU
