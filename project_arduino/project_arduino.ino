@@ -38,7 +38,7 @@ int state_change;
 #define IDLE 0
 #define PRESSED 1
 
-char network[] = "";
+char network[] = "MIT GUEST";
 char password[] = "";
 /* Having network issues since there are 50 MIT and MIT_GUEST networks?. Do the following:
     When the access points are printed out at the start, find a particularly strong one that you're targeting.
@@ -61,11 +61,11 @@ byte bssid[] = {0x04, 0x95, 0xE6, 0xAE, 0xDB, 0x41}; //6 byte MAC address of AP 
 
 char host[] = "608dev-2.net";
 // input spotify or custom username
-char username[] = "";
+char username[] = "maker";
 // input user oath token (get temporary token here: https://developer.spotify.com/console/get-users-currently-playing-track/?market=&additional_types=)
 // when selecting scopes, in addition to 'user-read-currently-playing' please also check 'user-modify-playback-state' so that you can also play shared songs
 // tokens expire pretty quickly so you may need to get a new token if the code just suddenly breaks
-char SPOTIFY_OATH_TOKEN[] = "";
+char SPOTIFY_OATH_TOKEN[] = "BQBeuwzkmY_VJoH0NbUMDLUIH9JOb1WVlOA0PQbbTv2Fg0_iyxnn0esGDouJCSXg_7sq8LTfhblhgByZGIYxmQCBfTTluS0KAbSqHSKv4ocJBAeUab--j0faFBezSLLADUrC2dLVAYZInGNIB_6kWM0w3yHM3niWYl2TZYchFDAUNJxXEBylGk9KMVlApWzOAvNp4TTFHtXmIWzz";
 
 // AUDIO VISUALIZATION
 
@@ -457,11 +457,6 @@ void handleInvite(int leftReading, int rightReading) {
     do_http_request("608dev-2.net", request, response, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, false);
     invite[0] = '\0';
     state_change = 1;
-  } else if (leftReading) {
-    // TODO raul or james... this is a bug? cant dismiss invites. hackin it for demo
-    invite[0] = '\0';
-    state = song_menu;
-    tft.fillScreen(TFT_BLACK);
   }
 }
 
