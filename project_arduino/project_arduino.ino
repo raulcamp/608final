@@ -144,7 +144,7 @@ const int NOTIF_FETCH_TIME = 20000;
 //Some constants and some resources:
 const int RESPONSE_TIMEOUT = 6000; //ms to wait for response from host
 const uint16_t IN_BUFFER_SIZE = 2000;
-const uint16_t OUT_BUFFER_SIZE = 2000; //size of buffer to hold HTTP response
+const uint16_t OUT_BUFFER_SIZE = 4000; //size of buffer to hold HTTP response
 char request[IN_BUFFER_SIZE];
 char response[OUT_BUFFER_SIZE]; //char array buffer to hold HTTP request
 
@@ -258,8 +258,8 @@ void loop() {
   }
 
   // audio
-//  rawReading = analogRead(A0);
-//  visualizeMusic(rawReading);
+  rawReading = analogRead(A0);
+  visualizeMusic(rawReading);
   handleDisplay(leftReading, middleReading, rightReading);
 }
 
@@ -328,7 +328,13 @@ void fetchNotifications() {
 // IDLE
 
 void idleState(int leftReading, int middleReading, int rightReading) {
-  tft.println("Hello!\nIf you are currently listening to a song,\nthen press the left button to display song info.");
+  tft.println("\n       Hello!\n\nIf you are currently listening to a song,\npress the left button\n");
+  tft.println("\nVisualize your song, like/share it, or geta new song based off your heartbeat or\nstep speed!\n");
+  tft.fillCircle(65, 130, 20, TFT_GREEN);
+  tft.fillRect(55, 118, 20, 5, TFT_BLACK);
+  tft.fillRect(55, 128, 20, 5, TFT_BLACK);
+  tft.fillRect(55, 138, 20, 5, TFT_BLACK);
+  
 
   state_change = false;
 
@@ -336,7 +342,9 @@ void idleState(int leftReading, int middleReading, int rightReading) {
   // send request and retrieve song
       state = song_menu;
       state_change = true;
-      tft.println("Requesting Song...");
+      tft.fillScreen(TFT_BLACK);
+      tft.setCursor(0,0,1);
+      tft.println("\n\n   Finding Song...");
       getCurrentSong();
   }
 }
@@ -760,12 +768,14 @@ void initOptions() {
   sprintf(request, "GET http://608dev-2.net/sandbox/sc/team65/raul/final_project_server_code.py?action=get_groups&username=%s\r\n",username);
   strcat(request, "Host: 608dev-2.net\r\n"); //add more to the end
   strcat(request, "\r\n"); //add blank line!
-  do_http_request("608dev-2.net", request, response, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, false);
-  StaticJsonDocument<500> group_doc;
+  do_http_request("608dev-2.net", request, response, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, true);
+  Serial.println("what actually comes out:");
+  Serial.println(response);
+  StaticJsonDocument<1000> group_doc;
   deserializeJson(group_doc, response);
   num_groups = group_doc["num_groups"];
-  if (num_groups > 10) {
-    num_groups = 10;
+  if (num_groups > 8) {
+    num_groups = 8;
   }
   Serial.println(num_groups);
   for(int i = 0; i < num_groups; i++) {
