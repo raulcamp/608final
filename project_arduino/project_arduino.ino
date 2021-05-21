@@ -407,7 +407,7 @@ void songMenuState(int leftReading, int middleReading, int rightReading) {
       initOptions();
       state = groups_menu;
     }
-    else if(middleReading == 2){ // Like song
+    else if(middleReading == 2){ // Making Playlist
       tft.fillScreen(TFT_BLACK);
       tft.println("Making Playlist...");
       count = 2;
