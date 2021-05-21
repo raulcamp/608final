@@ -105,16 +105,29 @@ def request_handler(request):
             requests.post(endpoint, headers={'Authorization': OAUTH_TOKEN})
             return
         group_name = request['form']['group_name']
-        # if action == "make_playlist":
-        #     token = request['form']['token']
-        #     other_endpoint = 'https://api.spotify.com/v1/users/jayliner66'
-        #     endpoint = 'https://api.spotify.com/v1/users/jayliner66/playlists'
-        #     market='US'
-        #     additional_types='episode'
-        #     OAUTH_TOKEN = f'Bearer {token}'
-        #     # return requests.get(other_endpoint, params={'market': market, 'additional_types': additional_types}, headers={'Authorization': OAUTH_TOKEN})
-        #     req = requests.post(endpoint, data={'name': group_name, 'description': 'playlist of liked songs in '+group_name, 'public': False}, headers={'Authorization': OAUTH_TOKEN, 'Accept': "application/json", "Content-type": "application/json"})
-        #     return req
+        if action == "make_playlist":
+            token = request['form']['token']
+            endpoint = 'https://api.spotify.com/v1/users/jayliner66/playlists'
+            OAUTH_TOKEN = f'Bearer {token}'
+            request_body = json.dumps({"name": group_name, "description": "The liked songs in "+group_name, "public": False})
+            requests.post(endpoint, data=request_body, headers={'Authorization': OAUTH_TOKEN, 'Accept': "application/json", "Content-type": "application/json"})
+            with sqlite3.connect(liked_db) as ccc:
+                ccc.execute('''CREATE TABLE IF NOT EXISTS liked_data (group_name text, liker text, song text);''')
+                group_songs = ccc.execute('''SELECT song FROM liked_data WHERE group_name = ?;''',(group_name,)).fetchall()
+            real_group_songs = []
+            group_songs = [song.split('`')[1] for (song,) in group_songs]
+            endpoint = 'https://api.spotify.com/v1/me/playlists'
+            res = requests.get(endpoint, headers={'Authorization': OAUTH_TOKEN})
+            content = json.loads(res.content.decode('utf-8'))
+            playlists = content['items']
+            playlist_id = ""
+            for playlist in playlists:
+                if playlist['name'] == group_name:
+                    playlist_id = playlist['id']
+            endpoint = 'https://api.spotify.com/v1/playlists/'+playlist_id+'/tracks'
+            for song in group_songs:
+                requests.post(endpoint, params={'uris': [song]}, headers={'Authorization': OAUTH_TOKEN, 'Accept': "application/json", "Content-type": "application/json"})
+            return
         username = request['form']['username']
         with sqlite3.connect(group_db) as c:
             c.execute('''CREATE TABLE IF NOT EXISTS group_data (group_name text, username text, passcode text);''')
@@ -202,6 +215,8 @@ def request_handler(request):
                         return "You have successfully joined the group {}.".format(group_name)
         elif action == "like":
             song = request['form']['song']
+            if song[-2] == '\\':
+                song = song[-2]
             if len(current_users) == 0:
                 return "The group {} does not exist.".format(group_name)
             with sqlite3.connect(group_db) as c:

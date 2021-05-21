@@ -65,7 +65,7 @@ char username[] = "maker";
 // input user oath token (get temporary token here: https://developer.spotify.com/console/get-users-currently-playing-track/?market=&additional_types=)
 // when selecting scopes, in addition to 'user-read-currently-playing' please also check 'user-modify-playback-state' so that you can also play shared songs
 // tokens expire pretty quickly so you may need to get a new token if the code just suddenly breaks
-char SPOTIFY_OATH_TOKEN[] = "BQBeuwzkmY_VJoH0NbUMDLUIH9JOb1WVlOA0PQbbTv2Fg0_iyxnn0esGDouJCSXg_7sq8LTfhblhgByZGIYxmQCBfTTluS0KAbSqHSKv4ocJBAeUab--j0faFBezSLLADUrC2dLVAYZInGNIB_6kWM0w3yHM3niWYl2TZYchFDAUNJxXEBylGk9KMVlApWzOAvNp4TTFHtXmIWzz";
+char SPOTIFY_OATH_TOKEN[] = "BQABkXYwdzdrvom_ThLDyelCo07bZzfabMseLp8DmFo93xY_6WuuU3Mg4q6kMfbcHqR3XiXbniqxBgFI3KI4lYMONgxkKy3UZPRdhla2H1hURVGi-4QNRc6DApvMnWQUipLybTAsIZe1V4L4jJREfMMXtjyCXSPkfGv3FAx41NXNSlsF99gCehWLSN3gF4wHOf35fsPLjWPbzEqGBSUjo6Gyz2Y";
 
 // AUDIO VISUALIZATION
 
@@ -573,7 +573,7 @@ void groupsMenuState(int leftReading, int middleReading, int rightReading) {
         strcat(request,"\r\n"); //new line
         do_http_request("608dev-2.net", request, response, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, false);
     } else { // still not implemented
-        char body[200];
+        char body[500];
         sprintf(body,"action=make_playlist&group_name=%s&token=%s", groups[option_state], SPOTIFY_OATH_TOKEN);
         int body_len = strlen(body);
         sprintf(request,"POST http://608dev-2.net/sandbox/sc/team65/raul/final_project_server_code.py HTTP/1.1\r\n");
@@ -592,8 +592,10 @@ void groupsMenuState(int leftReading, int middleReading, int rightReading) {
     char out[100];
     if (count == 0) {
         sprintf(out, "Sent liked songs to groups");
-    } else {
+    } else if (count == 1) {
         sprintf(out, "Sent shared songs to groups");
+    } else {
+        sprintf(out, "Made playlist out of group's liked songs");
     }
     tft.println(out);
     delay(2000);
