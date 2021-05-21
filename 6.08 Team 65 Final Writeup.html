@@ -71,8 +71,6 @@ To overcome the non-dynamic spotify beats data we decided to use the audio from 
 
 The final iteration of the visualization integrated this microphone data with the spotify data to provide a visualization taylored to each specific song.  Based on the energy and danceability of a song, the color palette and cooldown of the LED was adjusted.  For instance, low tempo songs had low energy colors and longer cooldowns compared to high tempo songs.  Ultimately, we created a dynamic LED visualization taylored to each song type.
 
-## User Management
-
 ## Liking and sharing
 
 The system also has networking capabilities to be able to like and share songs with friends, through privatized groups. A user may form a group, and is given a random six-digit passcode for the group. Then, any user may use the passcode to join the group, or may be invited into the group by any user already in the group. The ESP will send periodic GET requests for any invites to groups, and upon receiving a group invite, a notification will appear on the user's screen and give the user the ability to reject or accept the incoming invite.
@@ -115,12 +113,45 @@ Week 4 Demo Video: https://drive.google.com/drive/u/0/folders/1H6U7JlpMs-waiMY2M
 This is the script which contained all of our web scraping as defined in [the BPM section](#bpm-basedrecommendation). It accepts an HTTP GET request, sends a request to the aforementioned song website, scrapes it to extract songs, chooses a random one, and returns it.
 
 
-
 ### `get_spotify_data.py`
 
 This is the script which contains the functions for the user to get all spotify data for a specific user. Specifically, this script handles the periodic GET requests from the user's status requests. The user is notified when there is exactly 32 seconds left in the song, which triggers its IMU to start recording steps. It then notifies the user when the current song playing on spotify is in the last 2 second of the song, where the esp32 would be notified to send the server the current number of steps. At this point, the GET request would contain the number of steps. The script parses this request and sends the number of steps to the 'recommend_song_by_bpm' function with an offset of 80. The recommended song is then returned.
 
-### PUT PYTHON FILES HERE WITH ~ PARAGRAPH EXPLANATION OF FUNCTION
+### 'final_project_server_code.py'
+
+This is the script that does all the heavy database work. It stores four databases, which include the group database, which stores the user in each group along with the group password; the invited database which includes the list of users that have been invited to a group; the liked song database which is the list of songs and the groups they're liked in along with the user who liked it; and finally the shared database with the groups that a song is shared to and the user who shared the song. There are a few methods that interact with the Spotify API as well -- 'get_song' will get the currently playing song of a user, 'play_song' will add the song to the user's queue and then skip to the next track, and 'make_playlist' will make a playlist in the name of a group, find the playlist ID of the playlist, and then add all the liked songs of the group to the playlist with the right playlist ID.
+
+Here is the most complicated code, for making a playlist of a group's liked songs:
+```Python
+
+if request['method'] == "POST":
+    action = request['form']['action']
+    group_name = request['form']['group_name']
+    if action == "make_playlist":
+        token = request['form']['token']
+        endpoint = 'https://api.spotify.com/v1/users/jayliner66/playlists' // jayliner66 is James's spotiy username
+        OAUTH_TOKEN = f'Bearer {token}'
+        request_body = json.dumps({"name": group_name, "description": "The liked songs in "+group_name, "public": False})
+        requests.post(endpoint, data=request_body, headers={'Authorization': OAUTH_TOKEN, 'Accept': "application/json", "Content-type": "application/json"})
+        with sqlite3.connect(liked_db) as ccc:
+            ccc.execute('''CREATE TABLE IF NOT EXISTS liked_data (group_name text, liker text, song text);''')
+            group_songs = ccc.execute('''SELECT song FROM liked_data WHERE group_name = ?;''',(group_name,)).fetchall()
+        real_group_songs = []
+        group_songs = [song.split('`')[1] for (song,) in group_songs]
+        endpoint = 'https://api.spotify.com/v1/me/playlists'
+        res = requests.get(endpoint, headers={'Authorization': OAUTH_TOKEN})
+        content = json.loads(res.content.decode('utf-8'))
+        playlists = content['items']
+        playlist_id = ""
+        for playlist in playlists:
+            if playlist['name'] == group_name:
+                playlist_id = playlist['id']
+        endpoint = 'https://api.spotify.com/v1/playlists/'+playlist_id+'/tracks'
+        for song in group_songs:
+            requests.post(endpoint, params={'uris': [song]}, headers={'Authorization': OAUTH_TOKEN, 'Accept': "application/json", "Content-type": "application/json"})
+        return
+
+```
 
 ## Arduino Code
 
@@ -190,6 +221,8 @@ One challenge was that at first, we tried to have the LED visualization constant
 
 #### `groupsMenuState()`
 
+This is the state for when the user may scroll through the groups he/she is in with the left button, send a like/share/playlist make request to any group with the middle button, and leave the screen with the right button.
+
 #### `pulseRecommendationState()`
 
 This was a one-cycle state. Upon entry, an HTTP request targetting our BPM endpoint was formed and sent via `getSongByBPM()`. Upon receiving a response, the user was sent to the recommendedSongState.
@@ -197,8 +230,6 @@ This was a one-cycle state. Upon entry, an HTTP request targetting our BPM endpo
 #### `recommendedSongState()`
 
 In this state, the user was presented with the recommended song on the display. They could return to the home screen by pressing a button.
-
-#### OTHER FUNCTIONS YOU GUYS WANT TO TALK ABOUT
 
 ### `Button.cpp`
 

@@ -107,7 +107,7 @@ def request_handler(request):
         group_name = request['form']['group_name']
         if action == "make_playlist":
             token = request['form']['token']
-            endpoint = 'https://api.spotify.com/v1/users/jayliner66/playlists'
+            endpoint = 'https://api.spotify.com/v1/users/jayliner66/playlists' // jayliner66 is James's spotiy username
             OAUTH_TOKEN = f'Bearer {token}'
             request_body = json.dumps({"name": group_name, "description": "The liked songs in "+group_name, "public": False})
             requests.post(endpoint, data=request_body, headers={'Authorization': OAUTH_TOKEN, 'Accept': "application/json", "Content-type": "application/json"})
