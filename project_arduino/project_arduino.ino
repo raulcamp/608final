@@ -264,8 +264,6 @@ void loop() {
 }
 
 void handleDisplay(int leftReading, int middleReading, int rightReading) {
-  fetchNotifications();
-  
   tft.setCursor(0,0,1); // reset cursor at the top of the screen
   if (state_change) {
     tft.fillScreen(TFT_BLACK);
@@ -277,6 +275,7 @@ void handleDisplay(int leftReading, int middleReading, int rightReading) {
         idleState(leftReading, middleReading, rightReading);
         break;
     case song_menu: //Here the user has option to fetch vis or display song name
+        fetchNotifications();
         songMenuState(leftReading, middleReading, rightReading);
         break;
     case vis_menu: //Vis menu
@@ -297,22 +296,31 @@ void handleDisplay(int leftReading, int middleReading, int rightReading) {
 void fetchNotifications() {
   if (millis() - timer > NOTIF_FETCH_TIME) {
     request[0] = '\0'; //set 0th byte to null
-    sprintf(request, "GET http://608dev-2.net/sandbox/sc/team65/raul/final_project_server_code.py?action=get_invites&username=%s\r\n",username);
+    sprintf(request, "GET http://608dev-2.net/sandbox/sc/team65/raul/final_project_server_code.py?action=get_invites&username=%s HTTP/1.1\r\n",username);
     strcat(request, "Host: 608dev-2.net\r\n"); //add more to the end
     strcat(request, "\r\n"); //add blank line!
-    do_http_request("608dev-2.net", request, response, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, false);
-    Serial.println(response);
-    if (strcmp(response,"NO INVITES") != 0) {
-      strcat(invite, response);
+    do_http_request("608dev-2.net", request, response, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, true);
+    char* cleaned_transcript = strchr(response, '\r');
+    cleaned_transcript++;
+    char* last = strrchr(cleaned_transcript, '\n');
+    *last = '\0';
+    if (strcmp(cleaned_transcript,"NO INVITES") != 0) {
+      invite[0] = '\0';
+      sprintf(invite, cleaned_transcript);
       state_change = 1;
     } else {
       request[0] = '\0'; //set 0th byte to null
-      sprintf(request, "GET http://608dev-2.net/sandbox/sc/team65/raul/final_project_server_code.py?action=get_shared&username=%s\r\n",username);
+      sprintf(request, "GET http://608dev-2.net/sandbox/sc/team65/raul/final_project_server_code.py?action=get_shared&username=%s HTTP/1.1\r\n",username);
       strcat(request, "Host: 608dev-2.net\r\n"); //add more to the end
       strcat(request, "\r\n"); //add blank line!
-      do_http_request("608dev-2.net", request, response, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, false);
-      if (strcmp(response,"NO SHARED") != 0) {
-        strcat(shared, response);
+      do_http_request("608dev-2.net", request, response, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, true);
+      char* cleaned_transcript = strchr(response, '\r');
+      cleaned_transcript++;
+      char* last = strrchr(cleaned_transcript, '\n');
+      *last = '\0';
+      if (strcmp(cleaned_transcript,"NO SHARED") != 0) {
+        shared[0] = '\0';
+        sprintf(shared, cleaned_transcript);
         state_change = 1;
       } 
     }
@@ -436,7 +444,7 @@ void handleInvite(int leftReading, int rightReading) {
   tft.setCursor(1, 114, 1);
 
   if (leftReading) {
-    char body[100];
+    char body[400];
     sprintf(body,"action=rejected_join&username=%s&group_name=%s", username, invite);
     int body_len = strlen(body);
     sprintf(request,"POST http://608dev-2.net/sandbox/sc/team65/raul/final_project_server_code.py HTTP/1.1\r\n");
@@ -446,13 +454,13 @@ void handleInvite(int leftReading, int rightReading) {
     strcat(request,"\r\n"); //new line from header to body
     strcat(request,body); //body
     strcat(request,"\r\n"); //new line
-    do_http_request("608dev-2.net", request, response, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, false);
+    do_http_request("608dev-2.net", request, response, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, true);
     invite[0] = '\0';
     state_change = 1;
   }
 
   if (rightReading) {
-    char body[100];
+    char body[400];
     sprintf(body,"action=invited_join&username=%s&group_name=%s", username, invite);
     int body_len = strlen(body);
     sprintf(request,"POST http://608dev-2.net/sandbox/sc/team65/raul/final_project_server_code.py HTTP/1.1\r\n");
@@ -462,7 +470,7 @@ void handleInvite(int leftReading, int rightReading) {
     strcat(request,"\r\n"); //new line from header to body
     strcat(request,body); //body
     strcat(request,"\r\n"); //new line
-    do_http_request("608dev-2.net", request, response, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, false);
+    do_http_request("608dev-2.net", request, response, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, true);
     invite[0] = '\0';
     state_change = 1;
   } else if (leftReading) {
@@ -770,17 +778,17 @@ void playSong() {
 
 void initOptions() {
   request[0] = '\0'; //set 0th byte to null
-  sprintf(request, "GET http://608dev-2.net/sandbox/sc/team65/raul/final_project_server_code.py?action=get_groups&username=%s\r\n",username);
+  sprintf(request, "GET /sandbox/sc/team65/raul/final_project_server_code.py?action=get_groups&username=%s HTTP/1.1\r\n",username);
   strcat(request, "Host: 608dev-2.net\r\n"); //add more to the end
   strcat(request, "\r\n"); //add blank line!
-  do_http_request("608dev-2.net", request, response, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, true);
-  Serial.println("what actually comes out:");
+  Serial.println(request);
+  do_http_request("608dev-2.net", request, response, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, false);
   Serial.println(response);
-  StaticJsonDocument<1000> group_doc;
+  StaticJsonDocument<500> group_doc;
   deserializeJson(group_doc, response);
   num_groups = group_doc["num_groups"];
-  if (num_groups > 8) {
-    num_groups = 8;
+  if (num_groups > 10) {
+    num_groups = 10;
   }
   Serial.println(num_groups);
   for(int i = 0; i < num_groups; i++) {
@@ -918,7 +926,6 @@ void do_http_request(char* host, char* request, char* response, uint16_t respons
     while (client.available()) { //read out remaining text (body of response)
       char_append(response, client.read(), OUT_BUFFER_SIZE);
     }
-    Serial.println("TRUE RESPONSE:");
     if (serial) Serial.println(response);
     client.stop();
     if (serial) Serial.println("-----------");
