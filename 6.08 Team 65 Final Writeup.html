@@ -170,6 +170,8 @@ Based on user input via the buttons, we sent them off to other states, with inst
 
 #### `visMenuState()`
 
+From the songMenuState, the user had the option to enter the visMenuState, which displayed the LED visualization.  First, when in this state, a request is made to the server to get the features of the current song being played that determine the tempo and colors of the LED.  Then, the LED displays its visualization as explained above.  One challenge was that at first, we tried to have the LED visualization constantly running even while in the other states.  However this did not work because of the delays in the code from the other functionalities.  In order to make the LED visualizaition as precise as possible, we had to create its own state with a while loop that ran the visualization until the user performed a short left press to exit and go back to the songMenuState.
+
 #### `groupsMenuState()`
 
 #### `pulseRecommendationState()`
