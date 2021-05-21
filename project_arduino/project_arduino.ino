@@ -64,6 +64,7 @@ char host[] = "608dev-2.net";
 char username[] = "maker";
 // input user oath token (get temporary token here: https://developer.spotify.com/console/get-users-currently-playing-track/?market=&additional_types=)
 // when selecting scopes, in addition to 'user-read-currently-playing' please also check 'user-modify-playback-state' so that you can also play shared songs
+// for making a group playlist, the scopes 'playlist-modify-private' and 'playlist-read-private' must also be checked
 // tokens expire pretty quickly so you may need to get a new token if the code just suddenly breaks
 char SPOTIFY_OATH_TOKEN[] = "BQABkXYwdzdrvom_ThLDyelCo07bZzfabMseLp8DmFo93xY_6WuuU3Mg4q6kMfbcHqR3XiXbniqxBgFI3KI4lYMONgxkKy3UZPRdhla2H1hURVGi-4QNRc6DApvMnWQUipLybTAsIZe1V4L4jJREfMMXtjyCXSPkfGv3FAx41NXNSlsF99gCehWLSN3gF4wHOf35fsPLjWPbzEqGBSUjo6Gyz2Y";
 
