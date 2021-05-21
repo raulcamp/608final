@@ -76,7 +76,10 @@ The first iteration of the step-based song recommendation comprised of a feature
 
 Week 2 Demo Video
 
-After receiving feedback on this step-based song recommendation, we knew we had to augment our current system in a way that would make it more practical. To do so, we enhanced our recommender to choose the next song based on the number of steps in the last 30 seconds of the current song playing. To make this work, we needed the arduino to constantly send requests to spotify and receive a notification when we are in the last 30 seconds of the song, which would trigger the state to transition into one where the IMU to listen for steps.
+After receiving feedback on this step-based song recommendation, we knew we had to augment our current system in a way that would make it more practical. To do so, we enhanced our recommender to choose the next song based on the number of steps in the last 30 seconds of the current song playing. To make this work, we needed the arduino to constantly send requests to spotify and receive a notification when we are in the last 30 seconds of the song, which would trigger the IMU to start recording steps. When spotify notifies we are in the last 5 seconds of the song, we then send the request to the server containing the number of steps in which to recommend a song from.
+
+Week 3 Demo Video
+
 
 
 # Code Overview
