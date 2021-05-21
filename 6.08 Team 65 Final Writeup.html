@@ -22,9 +22,7 @@ Some key subgoals that we wanted to tackle:
 
 # Video Demo
 
-TBD
-
-![Video Demo](https://youtu.be/NmTJJTQTzZc)
+![Final Video Demo](https://youtu.be/FlR25wOP-rI)
 
 # Functional Block Diagram
 
@@ -66,6 +64,12 @@ An example of the functional heartbeat sensor can be seen in Michael's Week 3 an
 ![Heartbeat sensor working with full system integration, including fetching a song by BPM](https://youtu.be/NmTJJTQTzZc)
 
 ## Music Visualization
+
+The final visualization product combined both the spotify data and microphone input to create a pleasing visual display of a blinking and color changing LED on the ESP32.  The first step in this visualization utilized only the spotify data.  This data included information about the song as a whole like 'energy' or 'danceability', and also included information on the start time of each beat.  The first iteration of the visualization used only the start times of each beat to change the color of the LED.  The first challenge of this was to sync the LED with the current time of the song being played.  This was done through a spotify api request that returned the current progress, and then the ESP32 callibrated the LED to this progress with a small offset to account for the delay from when the request was sent until it was received.  Another challenge was that the beats data from spotify is not very dynamic, meaning that the length of each beat throughout every song was relatively the same length.  Therefore, it did not capture the fluxuations in beat length, but only captured the general beat throughout the whole song.  
+
+To overcome the non-dynamic spotify beats data we decided to use the audio from the microphone.  This worked by having a threshold on the volume of the input, and whenever the volume exceeded this threshold, it would trigger the LED to flash with a predetermined cooldown time of around .15s during which the color wouldn't change.  One challenge with this was that the visualization acted very similarly, even on different song types since we used predetermined colors and cooldown times.
+
+The final iteration of the visualization integrated this microphone data with the spotify data to provide a visualization taylored to each specific song.  Based on the energy and danceability of a song, the color palette and cooldown of the LED was adjusted.  For instance, low tempo songs had low energy colors and longer cooldowns compared to high tempo songs.  Ultimately, we created a dynamic LED visualization taylored to each song type.
 
 ## User Management
 
@@ -163,6 +167,10 @@ This is also where notifications were displayed, with the logic governing them b
 Based on user input via the buttons, we sent them off to other states, with instructions describing how to transition and come back.
 
 #### `visMenuState()`
+
+When this state is entered, a request is made to the server to get the features of the current song being played that determine the tempo and colors of the LED.  Then, the LED displays its visualization as explained above.  
+
+One challenge was that at first, we tried to have the LED visualization constantly running even while in the other states.  However this did not work because of the delays in the code from the other functionalities.  In order to make the LED visualizaition as precise as possible, we had to create its own state with a while loop that ran the visualization until the user performed a short left press to exit and go back to the songMenuState.
 
 #### `groupsMenuState()`
 
