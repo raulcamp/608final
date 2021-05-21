@@ -94,6 +94,12 @@ Week 4 Demo Video: https://drive.google.com/drive/u/0/folders/1H6U7JlpMs-waiMY2M
 
 This is the script which contained all of our web scraping as defined in [the BPM section](#bpm-basedrecommendation). It accepts an HTTP GET request, sends a request to the aforementioned song website, scrapes it to extract songs, chooses a random one, and returns it.
 
+
+
+### `get_spotify_data.py`
+
+This is the script which contains the functions for the user to get all spotify data for a specific user. Specifically, this script handles the periodic GET requests from the user's status requests. The user is notified when there is exactly 32 seconds left in the song, which triggers its IMU to start recording steps. It then notifies the user when the current song playing on spotify is in the last 2 second of the song, where the esp32 would be notified to send the server the current number of steps. At this point, the GET request would contain the number of steps. The script parses this request and sends the number of steps to the 'recommend_song_by_bpm' function with an offset of 80. The recommended song is then returned.
+
 ### PUT PYTHON FILES HERE WITH ~ PARAGRAPH EXPLANATION OF FUNCTION
 
 ## Arduino Code
