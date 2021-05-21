@@ -72,6 +72,11 @@ An example of the functional heartbeat sensor can be seen in Michael's Week 3 an
 ## Liking and sharing
 
 ## Step-based Song Recommendation
+The first iteration of the step-based song recommendation comprised of a feature where the user could enter the step-counter state where the IMU would start recording steps. Once the user was ready to retrieve a song that would match his or her activity level, he or she would send a request to the server (Michael's initial bpm.py script) and retrieve the recommended song.
+
+Week 2 Demo Video
+
+After receiving feedback on this step-based song recommendation, we knew we had to augment our current system in a way that would make it more practical. To do so, we enhanced our recommender to choose the next song based on the number of steps in the last 30 seconds of the current song playing. To make this work, we needed the arduino to constantly send requests to spotify and receive a notification when we are in the last 30 seconds of the song, which would trigger the state to transition into one where the IMU to listen for steps.
 
 
 # Code Overview
