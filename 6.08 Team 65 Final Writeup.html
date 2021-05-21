@@ -75,6 +75,12 @@ The final iteration of the visualization integrated this microphone data with th
 
 ## Liking and sharing
 
+The system also has networking capabilities to be able to like and share songs with friends, through privatized groups. A user may form a group, and is given a random six-digit passcode for the group. Then, any user may use the passcode to join the group, or may be invited into the group by any user already in the group. The ESP will send periodic GET requests for any invites to groups, and upon receiving a group invite, a notification will appear on the user's screen and give the user the ability to reject or accept the incoming invite.
+
+When a user is playing a song on a connected device, the ESP can detect the song and show the song name and artist on its display. The unique Spotify Track ID is also stored, so that if the user chooses to like the song, he/she is then given a multiple choice list of the groups he/she is in, and may choose to 'like' the song in any subset of the groups, which stores the track ID in that group's liked song database. At any point, a user may choose any group he/she is in, and make a playlist out of the group's liked songs, and this playlist will automatically be added to the user's list of playlists!
+
+Finally, users are also allowed to share songs to groups. Again, the user takes the currently playing song and can share it to any subset of groups that he/she is, and all other members of the group will receive a notification (via periodic GET requests) that he/she has been given a shared song. The user can either choose to reject the shared song, or play that song, in which case the song will be immediately played (i.e. added to the user's queue and then the track is skipped).
+
 ## Step-based Song Recommendation
 The first iteration of the step-based song recommendation comprised of a feature where the user could enter the step-counter state where the IMU would start recording steps. Once the user was ready to retrieve a song that would match his or her activity level, he or she would send a request to the server (Michael's initial bpm.py script) and retrieve the recommended song.
 
